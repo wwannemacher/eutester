@@ -221,6 +221,7 @@ class EbsTestSuite(EutesterTestCase):
                                                 group=group,
                                                 username=username,
                                                 password=inst_pass,
+                                                user_data=self.args.user_data,
                                                 type=vmtype,
                                                 zone=zone,
                                                 min=count,
