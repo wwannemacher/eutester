@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.commons.codec.digest.DigestUtils;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
@@ -144,26 +143,8 @@ public class S3ObjectTests {
 			cleanupTasks.add(new Runnable() {
 				@Override
 				public void run() {
-					int counter = 0;
-					do {
-						print("Deleting object " + key + " from bucket " + bucketName);
-						counter++;
-						try {
-							s3.deleteObject(bucketName, key);
-							break;
-						} catch (AmazonServiceException ase) {
-							// TODO File a bug
-							print("Error deleting object " + key + " from bucket " + bucketName);
-							ase.printStackTrace();
-							if (counter < 5) {
-								try {
-									Thread.sleep(2000);
-								} catch (InterruptedException e) {
-									e.printStackTrace();
-								}
-							}
-						}
-					} while (counter < 5);
+					print("Deleting object " + key + " from bucket " + bucketName);
+					s3.deleteObject(bucketName, key);
 				}
 			});
 			assertTrue("Invalid put object result", putObj != null);

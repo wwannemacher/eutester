@@ -1,6 +1,8 @@
 package com.eucalyptus.tests.awssdk;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.autoscaling.AmazonAutoScaling;
@@ -118,7 +120,7 @@ class Eutester4j {
 		
 		print("S3 Discovery Complete");
     }
-
+	
     public static void testInfo(String testName){
         print("*****TEST NAME: " + testName);
     }
@@ -172,7 +174,7 @@ class Eutester4j {
     public static AmazonS3 getS3Client(String accessKey, String secretKey,
                                                String endpoint) {
         AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-        final AmazonS3 s3 = new AmazonS3Client(creds);
+        final AmazonS3 s3 = new AmazonS3Client(creds, new ClientConfiguration().withProtocol(Protocol.HTTP));
         s3.setEndpoint(endpoint);
         return s3;
     }
