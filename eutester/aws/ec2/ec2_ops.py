@@ -30,35 +30,32 @@
 #
 # Author: vic.iglesias@eucalyptus.com
 
-
-import time
 import re
 import os
 import copy
 import socket
 import types
 import base64
-from datetime import datetime, timedelta
 import time
-import sys
+import boto
 from datetime import datetime
-
+from datetime import timedelta
+from eutester.aws.ec2.instance import Instance
+from eutester.aws.ec2.volume import Volume
+from eutester.aws.ec2.snapshot import Snapshot
+from eutester.aws.ec2.zone import Zone
+from boto.ec2.instance import Reservation
 from boto.ec2.image import Image
-from boto.ec2.instance import Reservation, Instance
 from boto.ec2.keypair import KeyPair
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, BlockDeviceType
-from boto.ec2.volume import Volume
 from boto.ec2.bundleinstance import BundleInstanceTask
 from boto.exception import EC2ResponseError
 from boto.ec2.regioninfo import RegionInfo
-import boto
+
 
 from eutester import Eutester
 import eutester
-from eutester.euinstance import EuInstance
-from eutester.euvolume import EuVolume
-from eutester.eusnapshot import EuSnapshot
-from eutester.euzone import EuZone
+
 
 EC2RegionData = {
     'us-east-1' : 'ec2.us-east-1.amazonaws.com',
@@ -647,7 +644,7 @@ disable_root: false"""
                 vol = self.ec2.create_volume(size, zone, snapshot)
                 cmdtime =  time.time() - cmdstart 
                 if vol:
-                    vol = EuVolume.make_euvol_from_vol(vol, tester=self, cmdstart=cmdstart)
+                    vol = Volume.make_euvol_from_vol(vol, tester=self, cmdstart=cmdstart)
                     vol.eutest_cmdstart = cmdstart
                     vol.eutest_createorder = x
                     vol.eutest_cmdtime = "{0:.2f}".format(cmdtime)
@@ -731,9 +728,9 @@ disable_root: false"""
         origlist = copy.copy(volumes)
         self.debug("Monitoring "+str(count)+" volumes for at least "+str(mincount)+" to reach state:"+str(state))
         for volume in volumes:
-            if not isinstance(volume, EuVolume):
-                raise Exception("object not of type EuVolume. Found type:"+str(type(volume)))
-        #volume = EuVolume()
+            if not isinstance(volume, Volume):
+                raise Exception("object not of type Volume. Found type:"+str(type(volume)))
+        #volume = Volume()
         # Wait for the volume to be created.
         self.debug( "Polling "+str(len(volumes))+" volumes for status:\""+str(state)+"\"...")
         start = time.time()
@@ -862,8 +859,8 @@ disable_root: false"""
         for vol in euvolumes:
             try:
                 vol.update()
-                if not isinstance(vol, EuVolume):
-                    vol = EuVolume.make_euvol_from_vol(vol,self)
+                if not isinstance(vol, Volume):
+                    vol = Volume.make_euvol_from_vol(vol,self)
                 monitor.append(vol)
             except:
                 self.debug(self.get_traceback())
@@ -936,9 +933,9 @@ disable_root: false"""
             self.debug('No volumes to print')
             return
         for volume in euvolumelist:
-            if not isinstance(volume, EuVolume):
-                self.debug("object not of type EuVolume. Found type:"+str(type(volume)))
-                volume = EuVolume.make_euvol_from_vol(volume=volume, tester=self)
+            if not isinstance(volume, Volume):
+                self.debug("object not of type Volume. Found type:"+str(type(volume)))
+                volume = Volume.make_euvol_from_vol(volume=volume, tester=self)
             euvolumes.append(volume)
         if not euvolumes:
             return
@@ -961,9 +958,9 @@ disable_root: false"""
             self.debug('No snapshots to print')
             return
         for snapshot in eusnapshots:
-            if not isinstance(snapshot, EuSnapshot):
-                self.debug("object not of type EuSnapshot. Found type:"+str(type(snapshot)))
-                snapshot = EuSnapshot.make_eusnap_from_snap(snapshot=snapshot, tester=self)
+            if not isinstance(snapshot, Snapshot):
+                self.debug("object not of type Snapshot. Found type:"+str(type(snapshot)))
+                snapshot = Snapshot.make_eusnap_from_snap(snapshot=snapshot, tester=self)
             print_list.append(snapshot)
         snapshot = print_list.pop()
         buf = snapshot.printself()
@@ -1272,7 +1269,7 @@ disable_root: false"""
         :param poll_interval: (optional integer) time to sleep between polling snapshot status
         :param timeout: (optional integer) over all time to wait before exiting as failure
         :param description:  (optional string) string used to describe the snapshot
-        :return: EuSnapshot
+        :return: Snapshot
         """
         return self.create_snapshots(volume, count=1, mincount=1, eof=True, wait_on_progress=wait_on_progress,
                                      poll_interval=poll_interval, timeout=timeout, description=description)[0]
@@ -1292,7 +1289,7 @@ disable_root: false"""
         :param poll_interval: (optional integer) time to sleep between polling snapshot status
         :param timeout: (optional integer) over all time to wait before exiting as failure
         :param description:  (optional string) string used to describe the snapshot
-        :return: EuSnapshot
+        :return: Snapshot
         """
         snapshots = self.create_snapshots_from_vol_id(volume_id, count=1, mincount=1, eof=True,
                                                       wait_on_progress=wait_on_progress, poll_interval=poll_interval,
@@ -1330,11 +1327,11 @@ disable_root: false"""
         :param poll_interval: (optional integer) time to sleep between polling snapshot status
         :param timeout: (optional integer) over all time to wait before exiting as failure
         :param description:  (optional string) string used to describe the snapshot
-        :return: EuSnapshot list
+        :return: Snapshot list
         """
         if isinstance(volume_id, Volume):
             raise Exception('Expected volume.id got Volume, try create_snapshots or create_snapshot_from_volume methods instead')
-        volume = EuVolume.make_euvol_from_vol(self.get_volume(volume_id), tester=self)
+        volume = Volume.make_euvol_from_vol(self.get_volume(volume_id), tester=self)
         return self.create_snapshots(volume,
                                      count=count, mincount=mincount, eof=eof, delay=delay,
                                      wait_on_progress=wait_on_progress, poll_interval=poll_interval,
@@ -1374,11 +1371,11 @@ disable_root: false"""
         :param timeout: (optional integer) over all time to wait before exiting as failure
         :param delete_failed: (optional boolean) automatically delete failed volumes
         :param description: (optional string) string used to describe the snapshot
-        :return: EuSnapshot list
+        :return: Snapshot list
         """
-        #Fix EuSnapshot for isinstance() use later...
+        #Fix Snapshot for isinstance() use later...
         if not hasattr(volume, 'md5'):
-            volume = EuVolume.make_euvol_from_vol(volume,tester= self)
+            volume = Volume.make_euvol_from_vol(volume,tester= self)
         volume_id = volume.id
         snapshots = []
         retlist = []
@@ -1402,7 +1399,7 @@ disable_root: false"""
                 cmdtime = time.time()-start
                 if snapshot:
                     self.debug("Attempting to create snapshot #"+str(x)+ ", id:"+str(snapshot.id))
-                    snapshot = EuSnapshot().make_eusnap_from_snap(snapshot, tester=self ,cmdstart=start)
+                    snapshot = Snapshot().make_eusnap_from_snap(snapshot, tester=self ,cmdstart=start)
                     #Append some attributes for tracking snapshot through creation and test lifecycle.
                     snapshot.eutest_polls = 0
                     snapshot.eutest_poll_count = poll_count
@@ -1494,7 +1491,7 @@ disable_root: false"""
         :param monitor_to_progress (optional integer): will consider the monitor successful and exit when the snapshot's
                                                         progress is >= this value
         :param delete_failed: (optional boolean) automatically delete failed volumes
-        :return: EuSnapshot list
+        :return: Snapshot list
         """
               
         failed = []
@@ -1511,8 +1508,8 @@ disable_root: false"""
         last_progress = 0
         monitor_start = time.time()
         for snap in snaps:
-            if not isinstance(snap, EuSnapshot):
-                raise Exception("object not of type EuSnapshot. Found type:"+str(type(snap)))
+            if not isinstance(snap, Snapshot):
+                raise Exception("object not of type Snapshot. Found type:"+str(type(snap)))
         snapshots = copy.copy(snaps)      
         for snap in snapshots:
             if not snap.eutest_polls:
@@ -1644,7 +1641,7 @@ disable_root: false"""
             if not snap in ec2_snaps:
                 self.debug('Snapshot:'+str(snap.id)+' no longer found on system')
             if not hasattr(snap,'eutest_volume_md5'):
-                snap = EuSnapshot.make_eusnap_from_snap(snap, tester=self)
+                snap = Snapshot.make_eusnap_from_snap(snap, tester=self)
             self.debug("Checking snap:"+str(snap.id)+" for match...")
             if volume_id and snap.volume_id != volume_id:
                 continue
@@ -2181,13 +2178,13 @@ disable_root: false"""
             elapsed = int(time.time()-start)
             self.debug("Associated IP successfully old_ip:"+str(old_ip)+' new_ip:'+str(instance.ip_address))
         if refresh_ssh:
-            if isinstance(instance, EuInstance):
+            if isinstance(instance, Instance):
                 self.sleep(5)
                 instance.update()
-                self.debug('Refreshing EuInstance:'+str(instance.id)+' ssh connection to associated addr:'+str(instance.ip_address))
+                self.debug('Refreshing Instance:'+str(instance.id)+' ssh connection to associated addr:'+str(instance.ip_address))
                 instance.reset_ssh_connection()
             else:
-                self.debug('WARNING: associate_address called with refresh_ssh set to true, but instance is not EuInstance type:'+str(instance.id))
+                self.debug('WARNING: associate_address called with refresh_ssh set to true, but instance is not Instance type:'+str(instance.id))
 
     def disassociate_address_from_instance(self, instance, timeout=75):
         """
@@ -2292,7 +2289,7 @@ disable_root: false"""
         volumes = self.ec2.get_all_volumes(filters=filters)
         for volume in volumes:
             if not hasattr(volume,'md5'):
-                volume = EuVolume.make_euvol_from_vol(volume, tester=self)
+                volume = Volume.make_euvol_from_vol(volume, tester=self)
             if not re.match(volume_id, volume.id):
                 continue
             if (snapid is not None) and (volume.snapshot_id != snapid):
@@ -2311,7 +2308,7 @@ disable_root: false"""
             if not (volume.size >= minsize) and (maxsize is None or volume.size <= maxsize):
                 continue
             if not hasattr(volume,'md5'):
-                volume = EuVolume.make_euvol_from_vol(volume)
+                volume = Volume.make_euvol_from_vol(volume)
             retlist.append(volume)
         if eof and retlist == []:
             raise Exception("Unable to find matching volume")
@@ -2537,7 +2534,7 @@ disable_root: false"""
             if keypair:
                 if isinstance(keypair, KeyPair):
                     keypair = keypair.name
-            self.debug('Euinstance list prior to running image...')
+            self.debug('Instance list prior to running image...')
             try:
                 self.print_euinstance_list()
             except Exception, e:
@@ -2559,7 +2556,7 @@ disable_root: false"""
                 try:
                     self.debug(str(instance.id)+':Converting instance to euinstance type.')
                     #convert to euinstances, connect ssh later...
-                    eu_instance =  EuInstance.make_euinstance_from_instance( instance, 
+                    eu_instance =  Instance.make_euinstance_from_instance( instance, 
                                                                              self, 
                                                                              keypair=keypair, 
                                                                              username = username, 
@@ -2574,7 +2571,7 @@ disable_root: false"""
                     instances.append(eu_instance)
                 except Exception, e:
                     self.debug(self.get_traceback())
-                    raise Exception("Unable to create Euinstance from " + str(instance)+", err:\n"+str(e))
+                    raise Exception("Unable to create Instance from " + str(instance)+", err:\n"+str(e))
             if monitor_to_running:
                 return self.monitor_euinstances_to_running(instances, timeout=timeout)
             else:
@@ -2851,8 +2848,8 @@ disable_root: false"""
         self.debug('(' + str(len(instance_list)) + ") monitor_instances_to_state: '" + str(state) + "' starting....")
         monitor = copy.copy(instance_list)
         for instance in monitor:
-            if not isinstance(instance, EuInstance):
-                instance = EuInstance.make_euinstance_from_instance( instance, self, auto_connect=False)
+            if not isinstance(instance, Instance):
+                instance = Instance.make_euinstance_from_instance( instance, self, auto_connect=False)
 
         good = []
         failed = []
@@ -2976,7 +2973,7 @@ disable_root: false"""
             self.debug('No instances to print')
             return
         for instance in euinstance_list:
-            if not isinstance(instance,EuInstance):
+            if not isinstance(instance,Instance):
                 self.debug("print_euinstance list passed non-EuInstnace type")
                 instance = self.convert_instance_to_euisntance(instance, auto_connect=False)
             plist.append(instance)
@@ -3084,7 +3081,7 @@ disable_root: false"""
 
     def convert_reservation_to_euinstance(self, reservation, username="root", password=None, keyname=None, private_addressing=False, timeout=60):
         """
-        Convert all instances in an entire reservation into eutester.euinstance.Euinstance objects.
+        Convert all instances in an entire reservation into eutester.euinstance.Instance objects.
 
         :param reservation: reservation object to use in conversion
         :param username: SSH user name of instance
@@ -3100,7 +3097,7 @@ disable_root: false"""
         for instance in reservation.instances:
             if keypair is not None or (password is not None and username is not None):
                 try:
-                    euinstance_list.append( EuInstance.make_euinstance_from_instance(instance, 
+                    euinstance_list.append( Instance.make_euinstance_from_instance(instance, 
                                                                                      self, 
                                                                                      keypair=keypair, 
                                                                                      username = username, 
@@ -3110,14 +3107,14 @@ disable_root: false"""
                 except Exception, e:
                     self.debug(self.get_traceback())
                     euinstance_list.append(instance)
-                    self.fail("Unable to create Euinstance from " + str(instance)+": "+str(e))
+                    self.fail("Unable to create Instance from " + str(instance)+": "+str(e))
             else:
                 euinstance_list.append(instance)
         reservation.instances = euinstance_list
         return reservation
 
     def convert_instance_to_euisntance(self, instance, keypair=None, username="root", password=None, auto_connect=True,timeout=120):
-        return EuInstance.make_euinstance_from_instance(instance, self, keypair=keypair, username = username,
+        return Instance.make_euinstance_from_instance(instance, self, keypair=keypair, username = username,
                                                         password=password, auto_connect=auto_connect,timeout=timeout )
 
     def get_console_output(self, instance):
@@ -3251,7 +3248,7 @@ disable_root: false"""
                         keypair=None
                         euinstances.append(instance)
                     else:
-                        euinstances.append(EuInstance.make_euinstance_from_instance( instance, 
+                        euinstances.append(Instance.make_euinstance_from_instance( instance, 
                                                                                      self, 
                                                                                      username=username,
                                                                                      password=password,
@@ -3591,7 +3588,7 @@ disable_root: false"""
 
         ### TODO edit this so that the proper port is open on the apache instance
         for instance in reservation.instances:
-            assert isinstance(instance, EuInstance)
+            assert isinstance(instance, Instance)
             try:
                 instance.sys("which apt-get", code=0)
                 ## Debian based Linux
@@ -3640,7 +3637,7 @@ disable_root: false"""
             get_zones = zones
         myzones = self.ec2.get_all_zones(zones=get_zones)
         for zone in myzones:
-            ret_list.append(EuZone.make_euzone_from_zone(zone, self))
+            ret_list.append(Zone.make_euzone_from_zone(zone, self))
         return ret_list
 
 
