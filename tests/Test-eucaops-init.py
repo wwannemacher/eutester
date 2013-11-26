@@ -33,7 +33,7 @@
 #
 import mock
 import unittest
-from eucaops import Eucaops
+from eutester.euca.euca_ops import Eucaops
 class EucaopsTest(unittest.TestCase):
     def setUp(self):
         self.tester = Eucaops(download_creds=False)
