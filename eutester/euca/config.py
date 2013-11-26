@@ -195,8 +195,6 @@ class File_Util():
                 self.md5sum = self.get_md5()
                 return
             time.sleep(2)
-        print 'No lines gathered in update'
-
 
     def get_file_lines(self):
         lines = []
@@ -223,8 +221,6 @@ class File_Util():
                     after_pattern=None,
                     single_action=True,
                     tempfilepath=None):
-        if self.verbose:
-            print "Starting file_edit_line..."
         tempfilepath = tempfilepath or str(self.filepath)+str('.tmp')
         tempfile = self.file_open(tempfilepath, write=True, create=True)
         self.update()
@@ -243,7 +239,6 @@ class File_Util():
             myfile = open(self.filepath, 'w')
             myfile.write(new_line)
             myfile.close()
-            print new_line
         #Iterate through file, when search patterns have been satisfied, write new_line...
         try:
             for line in self.lines:
@@ -256,7 +251,6 @@ class File_Util():
                         start_write = True
                 if start_write:
                     if not search_pattern or re.search(search_pattern, line):
-                        print "Found search pattern:" + str(search_pattern)
                         if action == File_Util.ADD:
                             if self.verbose: print "OLD:" + str(line)
                             line = str(line) + "\n" + new_line
@@ -546,7 +540,7 @@ class Config():
         :param ssh: eutester ssh_connection obj if file is remote
         :return: File_Util obj
         """
-        file_util = File_Util(filepath=filepath, ssh=ssh)
+        file_util = File_Util(filepath=filepath, ssh=ssh,verbose=verbose)
         return file_util
 
 
@@ -594,9 +588,6 @@ class Config():
         if self.verbose:
             if self.debugmethod is not None:
                 self.debugmethod(str(msg))
-            else:
-                print(str(msg))
-        
         
     def get_legacy_config(self, lines=None):
         '''

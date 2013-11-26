@@ -181,22 +181,9 @@ class EutesterTestUnit():
         self.name = str(method.__name__)
         self.result=EutesterTestResult.not_run
         self.time_to_run=0
-        if self.kwargs.get('html_anchors', False):
-            self.anchor_id = str(str(time.ctime())
-                                + self.name
-                                + "_"
-                                + str( ''.join(random.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for x in range(3)))
-                                + "_"
-                                ).replace(" ","_")
-            self.error_anchor_id = "ERROR_" + self.anchor_id
         self.description=self.get_test_method_description()
         self.eof=False
         self.error = ""
-        print "Creating testunit:" + str(self.name)+", args:"
-        for count, thing in enumerate(args):
-            print '{0}. {1}'.format(count, thing)
-        for name, value in kwargs.items():
-            print '{0} = {1}'.format(name, value)
     
     @classmethod
     def create_testcase_from_method(cls, method, eof=False, *args, **kwargs):
@@ -264,11 +251,6 @@ class EutesterTestUnit():
         '''
         if eof is None:
             eof = self.eof
-        for count, thing in enumerate(self.args):
-            print 'ARG:{0}. {1}'.format(count, thing)
-        for name, value in self.kwargs.items():
-            print 'KWARG:{0} = {1}'.format(name, value)
-        
         try:
             start = time.time()
             if not self.args and not self.kwargs:
@@ -284,15 +266,10 @@ class EutesterTestUnit():
             self.result = EutesterTestResult.not_run
         except Exception, e:
             buf = '\nTESTUNIT FAILED: ' + self.name
-            if self.kwargs.get('html_anchors',False):
-                buf += "<font color=red> Error in test unit '" + self.name + "':\n"
             out = StringIO.StringIO()
             traceback.print_exception(*sys.exc_info(),file=out)
             out.seek(0)
             buf += out.read()
-            if self.kwargs.get('html_anchors',False):
-                buf += ' </font>'
-                print '<a name="' + str(self.error_anchor_id) + '"></a>'
             print TestColor.get_canned_color('failred') + buf + TestColor.reset
             self.error = str(e)
             self.result = EutesterTestResult.failed
@@ -307,15 +284,16 @@ class EutesterTestUnit():
 class EutesterTestCase(unittest.TestCase):
     color = TestColor()
 
-    def __init__(self,name=None, debugmethod=None, log_level='debug', logfile=None, logfile_level='debug'):
-        return self.setuptestcase(name=name, debugmethod=debugmethod, logfile=logfile, logfile_level=logfile_level)
+    def __init__(self,name=None, debugmethod=None, log_level='info', logfile=None, logfile_level='debug'):
+        return self.setuptestcase(name=name, log_level=log_level, debugmethod=debugmethod, logfile=logfile,
+                                  logfile_level=logfile_level)
         
     def setuptestcase(self,
                       name=None,
                       debugmethod=None,
                       use_default_file=False,
                       default_config='eutester.conf',
-                      log_level='debug',
+                      log_level='info',
                       logfile=None,
                       logfile_level='debug'):
         self.name = self._testMethodName = name
@@ -326,13 +304,10 @@ class EutesterTestCase(unittest.TestCase):
             callerfilename=inspect.getouterframes(inspect.currentframe())[1][1]
             self.name = os.path.splitext(os.path.basename(callerfilename))[0]  
             self._testMethodName = self.name
-            print "setuptestname:"+str(name)
         if not hasattr(self,'args'): self.args=argparse.Namespace()
         self.debugmethod = debugmethod
         if not self.debugmethod:
             self.setup_debugmethod(logfile=self.logfile, logfile_level=self.logfile_level)
-        #For QA output add preformat tag
-        self.debug('<pre>')
         if not hasattr(self,'testlist'): self.testlist = []
         self.list = None
         if not hasattr(self,'configfiles'): self.configfiles=[]
@@ -349,8 +324,6 @@ class EutesterTestCase(unittest.TestCase):
         self.setup_parser()
         self.get_args()
 
-
-                                   
     def setup_parser(self,
                    testname=None, 
                    description=None,
@@ -492,15 +465,13 @@ class EutesterTestCase(unittest.TestCase):
             parser.add_argument('--use_color', dest='use_color', action='store_true', default=False)
         if stdout_log_level:
             parser.add_argument('--log_level',
-                                help="log level for stdout logging", default='debug')
+                                help="log level for stdout logging", default='info')
         if logfile:
             parser.add_argument('--logfile',
                                 help="file path to log to (in addtion to stdout", default=None)
         if logfile_level:
             parser.add_argument('--logfile_level',
                                 help="log level for log file logging", default='debug')
-        parser.add_argument('--html-anchors', dest='html_anchors', action='store_true',
-                                help="Print HTML anchors for jumping through test results", default=False)
         self.parser = parser  
         return parser
     
@@ -514,10 +485,6 @@ class EutesterTestCase(unittest.TestCase):
         
 
     def setup_debugmethod(self, testcasename=None, log_level=None, logfile=None, logfile_level=None):
-        print "setup_debugmethod: \ntestcasename:"+ str(testcasename) \
-                                + '\nlog_level:'+str(log_level) \
-                                + '\nlogfile:' +str(logfile) \
-                                + '\nlogfile_level:' +str(logfile_level)
         name = testcasename or self.name
 
         if not logfile and self.has_arg('logfile'):
@@ -530,27 +497,22 @@ class EutesterTestCase(unittest.TestCase):
 
         if not log_level and self.has_arg('log_level'):
             log_level = self.args.log_level
-        log_level = log_level or self.log_level or 'debug'
-
-        print "Starting setup_debugmethod, name:"+str(name)
-        print "After populating... setup_debugmethod: testcasename:"+ str(testcasename) \
-              + 'log_level:'+str(log_level) \
-              + 'logfile:' +str(logfile) \
-              + 'logfile_level:' +str(logfile_level)
+        log_level = log_level or self.log_level or 'info'
         if not name:
             if hasattr(self,'name'):
                 if isinstance(self.name, types.StringType):
                     name = self.name
             else:
                 name = 'EutesterTestCase'
-        self.logger = Logger(identifier=str(name),stdout_level=log_level, logfile=logfile, logfile_level='debug')
+        self.logger = Logger(identifier=str(name),stdout_level=log_level, logfile=logfile, logfile_level=logfile_level)
         self.debugmethod = self.logger.log.debug
+        self.info = self.logger.log.info
         if not self.has_arg('logger'):
             self.add_arg('logger',self.logger)
         if not self.has_arg('debug_method'):
             self.add_arg('debug_method', self.debug)
 
-    def debug(self,msg,traceback=1,color=None, linebyline=True):
+    def debug(self,msg,traceback=1,color=None, linebyline=True, debug_method=None):
         '''
         Description: Method for printing debug
         
@@ -564,8 +526,8 @@ class EutesterTestCase(unittest.TestCase):
         param color: Optional ascii text color scheme. See TestColor for more info. 
         '''
         try:
-            if not self.debugmethod:
-                self.setup_debugmethod()
+            if not debug_method:
+                debug_method = self.setup_debugmethod()
         except:
             self.setup_debugmethod()
 
@@ -599,9 +561,9 @@ class EutesterTestCase(unittest.TestCase):
             cur_method= funcs[0].func_name if funcs else ""
         if linebyline:
             for line in msg.split("\n"):
-                self.debugmethod("("+str(cur_method)+":"+str(lineno)+"): "+colorprefix+line.strip()+colorreset )
+                debug_method("("+str(cur_method)+":"+str(lineno)+"): "+colorprefix+line.strip()+colorreset )
         else:
-            self.debugmethod("("+str(cur_method)+":"+str(lineno)+"): "+colorprefix+str(msg)+colorreset )
+            debug_method("("+str(cur_method)+":"+str(lineno)+"): "+colorprefix+str(msg)+colorreset )
 
     def run_test_list_by_name(self, list, eof=None):
         unit_list = []
@@ -648,11 +610,7 @@ class EutesterTestCase(unittest.TestCase):
                 eof = kwargs['eof']
             else:
                 eof = kwargs.pop('eof')
-        ## Only pass the arg if we need it otherwise it will print with all methods/testunits
-        if self.args.html_anchors:
-            testunit = EutesterTestUnit(method, *args, html_anchors=self.args.html_anchors ,**kwargs)
-        else:
-            testunit = EutesterTestUnit(method, *args, **kwargs)
+        testunit = EutesterTestUnit(method, *args, **kwargs)
         testunit.eof = eof
         #if autoarg, auto populate testunit arguements from local testcase.args namespace values
         if autoarg:
@@ -686,7 +644,7 @@ class EutesterTestCase(unittest.TestCase):
             alines=alines+"\n"
         line = "-------------------------------------------------------------------------"
         out = blines+line+"\n"+msg+"\n"+line+alines
-        self.debug(out, traceback=traceback, color=testcolor,linebyline=False)  
+        self.debug(out, traceback=traceback, color=testcolor,linebyline=False,debug_method=self.info)
         
     def startmsg(self,msg=""):
         self.status(msg, traceback=3,testcolor=TestColor.get_canned_color('whiteonblue'))
@@ -797,7 +755,7 @@ class EutesterTestCase(unittest.TestCase):
                         self.endfailure(str(test.name))
                 else:
                     self.endsuccess(str(test.name))
-                self.debug(self.print_test_list_short_stats(list))
+                self.info(self.print_test_list_short_stats(list))
                         
         finally:
             elapsed = int(time.time()-start)
@@ -839,7 +797,6 @@ class EutesterTestCase(unittest.TestCase):
                 if test.result == EutesterTestResult.not_run:
                     not_run += 1
             total = passed + failed + not_run
-            print "passed:"+str(passed)+" failed:" + str(failed) + " not_run:" + str(not_run) + " total:"+str(total)
             if failed:
                 return(1)
             else:
@@ -847,16 +804,10 @@ class EutesterTestCase(unittest.TestCase):
 
     def print_test_unit_startmsg(self,test):
         startbuf = ''
-        if self.args.html_anchors:
-            link = '<a name="' + str(test.anchor_id) + '"></a>\n'
-            startbuf += '<div id="myDiv" name="myDiv" title="Example Div Element" style="color: #0900C4; font: Helvetica 12pt;border: 1px solid black;">'
-            startbuf += str(link)
         startbuf += "STARTING TESTUNIT: " + test.name
         argbuf = self.get_pretty_args(test)
         startbuf += str(test.description)+str(argbuf)
         startbuf += 'Running list method: "'+str(self.print_testunit_method_arg_values(test))+'"'
-        if self.args.html_anchors:
-            startbuf += '\n </div>'
         self.startmsg(startbuf)
     
     def has_arg(self,arg):
@@ -1322,7 +1273,7 @@ class EutesterTestCase(unittest.TestCase):
         if args:
             for val in args._get_kwargs():
                 argbuf += '\n'+str(val[0]).ljust(25)+" --->:  "+str(val[1])
-            self.status(argbuf)
+            self.debug(argbuf,debug_method=self.debugmethod)
             
     
     def populate_testunit_with_args(self,testunit,namespace=None):
@@ -1340,7 +1291,7 @@ class EutesterTestCase(unittest.TestCase):
         :param: namespace: namespace obj containing args/values to be applied to testunit. None by default will use local
                             testunit args. 
         '''
-        self.debug("Attempting to populate testunit:"+str(testunit.name)+", with testcase.args...")
+        self.debug("Attempting to populate testunit:"+str(testunit.name)+", with testcase.args...",debug_method=self.debugmethod)
         args_to_apply = namespace or self.args
         if not args_to_apply:
             return
@@ -1348,12 +1299,12 @@ class EutesterTestCase(unittest.TestCase):
         
         #copy the test units key word args
         testunit_obj_args.update(copy.copy(testunit.kwargs))
-        self.debug("Testunit keyword args:"+str(testunit_obj_args))
+        self.debug("Testunit keyword args:"+str(testunit_obj_args),debug_method=self.debugmethod)
         
         #Get all the var names of the underlying method the testunit is wrapping
         method_args = self.get_meth_arg_names(testunit.method)
         offset = 0 if isinstance(testunit.method,types.FunctionType) else 1
-        self.debug("Got method args:"+str(method_args))
+        self.debug("Got method args:"+str(method_args),debug_method=self.debugmethod)
        
             
         #Add the var names of the positional args provided in testunit.args to check against later
@@ -1361,16 +1312,16 @@ class EutesterTestCase(unittest.TestCase):
         for x,arg in enumerate(testunit.args):
             testunit_obj_args[method_args[x+offset]] = arg
         
-        self.debug("test unit total args:"+str(testunit_obj_args))
+        self.debug("test unit total args:"+str(testunit_obj_args),debug_method=self.debugmethod)
         #populate any global args which do not conflict with args already contained within the test case
         #first populate matching method args with our global testcase args taking least precedence
         for apply_val in args_to_apply._get_kwargs():
             for methvar in method_args:
                 if methvar == apply_val[0]:
-                    self.debug("Found matching arg for:"+str(methvar))
+                    self.debug("Found matching arg for:"+str(methvar),debug_method=self.debugmethod)
                     #Don't overwrite existing testunit args/kwargs that have already been assigned
                     if apply_val[0] in testunit_obj_args:
-                            self.debug("Skipping populate because testunit already has this arg:"+str(methvar))
+                            self.debug("Skipping populate because testunit already has this arg:"+str(methvar),debug_method=self.debugmethod)
                             continue
                     #Append cmdargs list to testunits kwargs
                     testunit.set_kwarg(methvar,apply_val[1]) 
@@ -1403,7 +1354,7 @@ class EutesterTestCase(unittest.TestCase):
         cmdargs={}
         f_code = self.get_method_fcode(meth)
         vars = self.get_meth_arg_names(meth)
-        self.debug("do_with_args: Method:"+str(f_code.co_name)+", Vars:"+str(vars))
+        self.debug("do_with_args: Method:"+str(f_code.co_name)+", Vars:"+str(vars),debug_method=self.debugmethod)
         
         #first populate matching method args with our global testcase args...
         for val in tc_args._get_kwargs():
@@ -1418,7 +1369,7 @@ class EutesterTestCase(unittest.TestCase):
             for var in vars:
                 if var == name:
                     cmdargs[var]=value
-        self.debug('create_with_args: running '+str(f_code.co_name)+"("+str(cmdargs).replace(':','=')+")")
+        self.debug('create_with_args: running '+str(f_code.co_name)+"("+str(cmdargs).replace(':','=')+")",debug_method=self.debugmethod)
         return meth(**cmdargs)            
         
     @classmethod

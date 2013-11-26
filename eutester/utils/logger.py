@@ -51,7 +51,7 @@ class Logger(object):
     def __init__(self,
                  parent_logger_name = 'eutester',
                  identifier="eulogger",
-                 stdout_level="debug",
+                 stdout_level="info",
                  stdout_format = None,
                  logfile = "",
                  logfile_level="debug",

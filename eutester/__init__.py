@@ -67,10 +67,11 @@ class Eutester(object):
         ### Default values for configuration
         self.credpath = credpath
         
-        ### Eutester logs
+        #al## Eutester logs
         self.logger = Logger(identifier="EUTESTER")
         self.debug = self.logger.log.debug
-        self.critical = self.logger.log.critical
+        self.critical = self.fail = self.logger.log.critical
+        self.error = self.logger.log.error
         self.info = self.logger.log.info
         
         ### LOGS to keep for printing later
@@ -79,34 +80,34 @@ class Eutester(object):
 
         ### Pull the access and secret keys from the eucarc or use the ones provided to the constructor
         if self.credpath is not None:
-            self.debug("Extracting keys from " + self.credpath)         
+            self.debug("Extracting keys from " + self.credpath)
             self.aws_access_key_id = self.get_access_key()
             self.aws_secret_access_key = self.get_secret_key()
             self.account_id = self.get_account_id()
             self.user_id = self.get_user_id()
 
     def get_access_key(self):
-        if not self.aws_access_key_id:     
-            """Parse the eucarc for the EC2_ACCESS_KEY"""
+        """Parse the eucarc for the EC2_ACCESS_KEY"""
+        if not self.aws_access_key_id:
             self.aws_access_key_id = self.parse_eucarc("EC2_ACCESS_KEY")  
         return self.aws_access_key_id 
     
     def get_secret_key(self):
-        if not self.aws_secret_access_key: 
-            """Parse the eucarc for the EC2_SECRET_KEY"""
+        """Parse the eucarc for the EC2_SECRET_KEY"""
+        if not self.aws_secret_access_key:
             self.aws_secret_access_key = self.parse_eucarc("EC2_SECRET_KEY")
         return self.aws_secret_access_key
     
     def get_account_id(self):
+        """Parse the eucarc for the EC2_ACCOUNT_NUMBER"""
         if not self.account_id:
-            """Parse the eucarc for the EC2_ACCOUNT_NUMBER"""
             self.account_id = self.parse_eucarc("EC2_ACCOUNT_NUMBER")
         return self.account_id
     
     def get_user_id(self):
+        """Parse the eucarc for the EC2_ACCOUNT_NUMBER"""
         if not self.user_id:
             self.user_id = self.parse_eucarc("EC2_USER_ID")
-        """Parse the eucarc for the EC2_ACCOUNT_NUMBER"""
         return self.user_id 
 
     def get_port(self):
@@ -160,7 +161,7 @@ class Eutester(object):
         if re.search("0.0.0.0", address): 
             self.critical("Address is all 0s and will not be able to ping it") 
             return False
-        self.debug("Attempting to ping " + address)
+        self.info("Attempting to ping " + address)
         while poll_count > 0:
             poll_count -= 1
             try:
@@ -198,7 +199,7 @@ class Eutester(object):
             debug = self.debug
         else:
             debug = lambda msg: None
-        debug('test_port_status, ip:'+str(ip)+', port:'+str(port)+', TCP:'+str(tcp))
+        self.info('test_port_status, ip:'+str(ip)+', port:'+str(port)+', TCP:'+str(tcp))
         if tcp:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         else:
@@ -212,7 +213,7 @@ class Eutester(object):
                 s.sendto("--TEST LINE--", (ip, port))
                 recv, svr = s.recvfrom(255)
         except socket.error, se:
-            debug('test_port_status failed socket error:'+str(se[0]))
+            self.critical('test_port_status failed socket error:'+str(se[0]))
             #handle specific errors here, for now just for debug...
             ecode=se[0]
             if ecode == socket.errno.ECONNREFUSED:
@@ -238,15 +239,6 @@ class Eutester(object):
     def diff(self, list1, list2):
         """Return the diff of the two lists"""
         return list(set(list1)-set(list2))
-    
-    def fail(self, message):
-        self.critical(message)
-        #self.fail_log.append(message)
-        self.fail_count += 1
-        if self.exit_on_fail == 1:
-            raise Exception("Test step failed: "+str(message))
-        else:
-            return 0 
     
     def clear_fail_log(self):
         self.fail_log = []
@@ -360,7 +352,7 @@ class Eutester(object):
         :return: result upon success
         :raise: Exception when instance does not enter proper state
         """
-        self.debug( "Beginning poll loop for result " + str(callback.func_name) + " to go to " + str(result) )
+        self.info( "Beginning poll loop for result " + str(callback.func_name) + " to go to " + str(result) )
         start = time.time()
         elapsed = 0
         current_state =  callback(**callback_kwargs)

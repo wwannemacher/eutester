@@ -812,7 +812,6 @@ class Instance(boto_instance, TaggedResource):
         fillcmd = "dd if=/dev/zero of="+str(voldev)+"; sync"
         return self.time_dd(fillcmd)
 
-    @Eutester.printinfo
     def random_fill_volume(self,euvolume,srcdev=None, length=None, timepergig=90):
         '''
         Attempts to fill the entire given euvolume with unique non-zero data.
@@ -877,8 +876,6 @@ class Instance(boto_instance, TaggedResource):
         '''
         return self.dd_monitor(ddcmd=ddcmd, poll_interval=poll_interval, tmpfile=tmpfile)
 
-
-    @Eutester.printinfo
     def dd_monitor(self,
                    ddif=None,
                    ddof=None,
@@ -975,11 +972,9 @@ class Instance(boto_instance, TaggedResource):
                  ddseek_str = ''
             ddcmd = str('dd if='+str(ddif)+' of='+str(ddof)+str(ddseek_str)+str(ddbs_str)+str(ddcount_str))
             ret['ddcmd'] = ddcmd
-        '''
-        Due to the ssh psuedo tty, this is done in an ugly manner to get output of future usr1 signals 
-        for dd status updates and allow this to run with nohup in the background. Added sleep so cmd is nohup'd 
-        before tty is terminated (maybe?)
-        '''
+        #Due to the ssh psuedo tty, this is done in an ugly manner to get output of future usr1 signals
+        #for dd status updates and allow this to run with nohup in the background. Added sleep so cmd is nohup'd
+        #before tty is terminated (maybe?)
         cmd = 'nohup '+str(ddcmd)+' 2> '+str(tmpfile)+' & echo $! && sleep 2'
         #Execute dd command and store echo'd pid from output
         try:
@@ -1079,7 +1074,7 @@ class Instance(boto_instance, TaggedResource):
             sys.stdout.flush()
             time.sleep(poll_interval)
         sys.stdout.write(linediv)
-        sys.stdout.flush()
+        self.debug(sys.stdout)
         elapsed = int(time.time()-start)
         if not done:
             #Attempt to kill dd process...
@@ -1192,7 +1187,8 @@ class Instance(boto_instance, TaggedResource):
             uptime = None
             try:
                 uptime = self.get_uptime()
-            except: pass
+            except:
+                pass
             return uptime
         self.debug('Attempting to reboot instance:'+str(self.id)+', check attached volume state first')
         uptime = self.tester.wait_for_result( get_safe_uptime, None, oper=operator.ne)
