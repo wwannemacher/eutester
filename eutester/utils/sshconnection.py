@@ -97,7 +97,6 @@ import types
 import sys
 import termios
 import tty
-import eucaops
 
 
 

@@ -11,8 +11,8 @@ import types
 import traceback
 import random
 import string
-from eutester.eulogger import Eulogger
-from eutester.euconfig import EuConfig
+from eutester.utils.logger import Logger
+from eutester.euca.config import Config
 import StringIO
 import copy
 
@@ -543,7 +543,7 @@ class EutesterTestCase(unittest.TestCase):
                     name = self.name
             else:
                 name = 'EutesterTestCase'
-        self.logger = Eulogger(identifier=str(name),stdout_level=log_level, logfile=logfile, logfile_level='debug')
+        self.logger = Logger(identifier=str(name),stdout_level=log_level, logfile=logfile, logfile_level='debug')
         self.debugmethod = self.logger.log.debug
         if not self.has_arg('logger'):
             self.add_arg('logger',self.logger)
@@ -1217,7 +1217,7 @@ class EutesterTestCase(unittest.TestCase):
         self.configfiles = configfiles
         try:
             for configfile in configfiles:
-                euconfigs.append(EuConfig(filename=configfile))
+                euconfigs.append(Config(filename=configfile))
         except Exception, e:
             self.debug("Unable to read config from file: " + str(e))
 

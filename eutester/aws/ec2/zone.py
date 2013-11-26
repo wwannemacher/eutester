@@ -48,13 +48,13 @@ class Vm_Type():
         self.ram = ram
         self.disk = disk
 
-class EuZone(Zone):
+class Zone(Zone):
     tester = None
     vm_types = []
 
     @classmethod
     def make_euzone_from_zone(cls, zone, tester):
-        newzone = EuZone(zone.connection)
+        newzone = Zone(zone.connection)
         newzone.__dict__ = zone.__dict__
         newzone.tester = tester
         newzone.vm_types = newzone.get_all_vm_type_info()
@@ -64,7 +64,7 @@ class EuZone(Zone):
         self.tester.debug(msg)
 
     def update(self):
-        super(EuZone, self).update()
+        super(Zone, self).update()
         self.vm_types = self.get_all_vm_type_info()
 
     @eutester.Eutester.printinfo

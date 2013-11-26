@@ -454,7 +454,7 @@ class Config_Section():
             delattr(self, item.name)
 
 
-class EuConfig():
+class Config():
     
     def __init__(self,
                  filename='../input/2btested.lst',

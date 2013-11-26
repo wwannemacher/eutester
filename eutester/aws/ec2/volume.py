@@ -35,14 +35,13 @@ Created on Mar 7, 2012
 Place holder for volume test specific convenience methods+objects to extend boto's volume class
 
 '''
-from boto.ec2.volume import Volume
-from eutester.taggedresource import TaggedResource
-import eucaops
+from boto.ec2 import volume
+from eutester.aws.ec2.taggedresource import TaggedResource
 import time
 
 
 
-class EuVolume(Volume, TaggedResource):
+class Volume(volume.Volume, TaggedResource):
     tester = None
     md5 = None
     md5len = 32
@@ -64,7 +63,7 @@ class EuVolume(Volume, TaggedResource):
         
     @classmethod
     def make_euvol_from_vol(cls,volume, tester=None, cmdstart=None):
-        newvol = EuVolume(volume.connection)
+        newvol = Volume(volume.connection)
         newvol.__dict__ = volume.__dict__
         newvol.tester = tester
         newvol.md5 = None
@@ -72,7 +71,7 @@ class EuVolume(Volume, TaggedResource):
         newvol.eutest_failmsg = None
         newvol.eutest_laststatus = newvol.status
         newvol.eutest_ageatstatus = 0 
-        newvol.eutest_cmdstart = cmdstart or eucaops.EC2ops.get_volume_time_created(volume)
+        newvol.eutest_cmdstart = cmdstart or time.time()
         newvol.eutest_createorder = None
         newvol.eutest_cmdtime = None
         newvol.set_attached_status()
@@ -80,7 +79,7 @@ class EuVolume(Volume, TaggedResource):
         return newvol
     
     def update(self):
-        super(EuVolume, self).update()
+        super(Volume, self).update()
         self.set_last_status()
     
     def set_last_status(self,status=None):

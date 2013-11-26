@@ -32,15 +32,15 @@
 
 import re
 import time
-from eutester import sshconnection
-from eutester.sshconnection import SshCbReturn, CommandTimeoutException
+from eutester.utils import sshconnection
+from eutester.utils.sshconnection import SshCbReturn, CommandTimeoutException
 import types
 import stat
 import eutester
 import copy
 import os
-from eutester import machine
-from xml.dom.minidom import parse, parseString
+from eutester.utils import machine
+from xml.dom.minidom import parseString
 import dns.resolver
 
 
@@ -114,7 +114,7 @@ class Eunode:
         :param machine: optional eutester machine type object
         :param tester: - eutester obj
         """
-        type = EuserviceManager.node_type_string
+        type = ServiceManager.node_type_string
         self.hostname = hostname
         self.partition = partition
         self.part_name = partition.name
@@ -391,7 +391,7 @@ class Eunode:
 
 
 
-class Euservice(object):
+class Service(object):
 
     def __init__(self, service_string, tester = None):
         values = service_string.split()
@@ -462,11 +462,11 @@ class Euservice(object):
         if service_string.split()[1] == 'dns':
             return DnsService(service_string)
         else:
-            return Euservice(service_string, tester)
+            return Service(service_string, tester)
 
 
 
-class DnsService(Euservice):
+class DnsService(Service):
     def __init__(self, service_string):
         super(DnsService, self).__init__(service_string)
         self.resolver = dns.resolver.Resolver(configure=False)
@@ -537,7 +537,7 @@ class Partition:
     def get_disabled_vb(self):
         return self.get_disabled(self.vbs)
  
-class EuserviceManager(object):
+class ServiceManager(object):
     cluster_type_string = "cluster"
     walrus_type_string = 'walrus'
     storage_type_string = 'storage'
@@ -661,7 +661,7 @@ class EuserviceManager(object):
                 time.sleep(poll_interval)
         #Create euservice objects from command output and return list of euservices.
         for service_line in describe_services:
-            services.append(Euservice.create_service(service_line, self.tester))
+            services.append(Service.create_service(service_line, self.tester))
         return services
 
     def print_services_list(self, services=None):

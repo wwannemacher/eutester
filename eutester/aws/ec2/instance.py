@@ -45,12 +45,12 @@ Sample usage:
     testinstance.sys('yum install ntpd')
 '''
 
-from boto.ec2.instance import Instance
+from boto.ec2.instance import Instance as boto_instance
 #from eutester import euvolume
 from eutester import Eutester
-from eutester.euvolume import EuVolume
-from eutester import eulogger
-from eutester.taggedresource import TaggedResource
+from eutester.aws.ec2.volume import Volume
+from eutester.utils.logger import Logger
+from eutester.aws.ec2.taggedresource import TaggedResource
 from random import randint
 import sys
 import os
@@ -62,7 +62,7 @@ import operator
 from eutester.utils import sshconnection
 
 
-class EuInstance(Instance, TaggedResource):
+class Instance(boto_instance, TaggedResource):
     keypair = None
     keypath = None
     username = None
@@ -128,13 +128,13 @@ class EuInstance(Instance, TaggedResource):
         verbose - optional - boolean to determine if debug is to be printed using debug()
         retry - optional - integer, ssh connection attempts for non-authentication failures
         '''
-        newins = EuInstance(instance.connection)
+        newins = Instance(instance.connection)
         newins.__dict__ = instance.__dict__
         newins.tester = tester
         
         newins.debugmethod = debugmethod
         if newins.debugmethod is None:
-            newins.logger = eulogger.Eulogger(identifier= str(instance.id))
+            newins.logger = Logger(identifier= str(instance.id))
             newins.debugmethod= newins.logger.log.debug
             
         if (keypair is not None):
@@ -168,7 +168,7 @@ class EuInstance(Instance, TaggedResource):
         if newins.root_device_type == 'ebs':
             try:
                 volume = newins.tester.get_volume(volume_id = newins.block_device_mapping.get(newins.root_device_name).volume_id)
-                newins.bdm_root_vol = EuVolume.make_euvol_from_vol(volume, tester=newins.tester,cmdstart=newins.cmdstart)
+                newins.bdm_root_vol = Volume.make_euvol_from_vol(volume, tester=newins.tester,cmdstart=newins.cmdstart)
             except:pass
                 
         if newins.auto_connect:
@@ -187,7 +187,7 @@ class EuInstance(Instance, TaggedResource):
         return newins
     
     def update(self):
-        super(EuInstance, self).update()
+        super(Instance, self).update()
         self.set_last_status()
     
     def set_last_status(self,status=None):
@@ -527,8 +527,8 @@ class EuInstance(Instance, TaggedResource):
         optional - timeout - integer- time allowed before failing
         optional - overwrite - flag to indicate whether to overwrite head data of a non-zero filled volume upon attach for md5
         ''' 
-        if not isinstance(volume, EuVolume):
-            volume = EuVolume.make_euvol_from_vol(volume)
+        if not isinstance(volume, Volume):
+            volume = Volume.make_euvol_from_vol(volume)
         return self.attach_euvolume(volume,  dev=dev, timeout=timeout, overwrite=overwrite)
     
         
@@ -541,7 +541,7 @@ class EuInstance(Instance, TaggedResource):
         optional - timeout - integer- time allowed before failing
         optional - overwrite - flag to indicate whether to overwrite head data of a non-zero filled volume upon attach for md5
         ''' 
-        if not isinstance(euvolume, EuVolume):
+        if not isinstance(euvolume, Volume):
             raise Exception("Volume needs to be of type euvolume, try attach_volume() instead?")
         
         self.debug("Attempting to attach volume:"+str(euvolume.id)+" to instance:" +str(self.id)+" to dev:"+ str(dev))
@@ -1116,7 +1116,7 @@ class EuInstance(Instance, TaggedResource):
         '''
         
         voldev = euvolume.guestdev.strip()
-        if not isinstance(euvolume, EuVolume):
+        if not isinstance(euvolume, Volume):
             raise Exception('EuVolume() type not passed to vol_write_random_data_get_md5, got type:' + str(type(euvolume)) )
         if not voldev:
             raise Exception('Guest device not populated for euvolume:' + str(euvolume.id) +
@@ -1253,8 +1253,8 @@ class EuInstance(Instance, TaggedResource):
         
         '''
         for euvol in list:
-            if not isinstance(euvol, EuVolume): # or not euvol.md5:
-                list[list.index(euvol)] = EuVolume.make_euvol_from_vol(euvol, self.tester)
+            if not isinstance(euvol, Volume): # or not euvol.md5:
+                list[list.index(euvol)] = Volume.make_euvol_from_vol(euvol, self.tester)
         for euvol in list:
             dev = self.get_free_scsi_dev()
             if euvol.md5:
@@ -1449,7 +1449,7 @@ class EuInstance(Instance, TaggedResource):
                     try:
                         self.assertFilePresent(dev)
                         if not detach:
-                            evol = EuVolume.make_euvol_from_vol(vol)
+                            evol = Volume.make_euvol_from_vol(vol)
                             evol.guestdev = dev
                             self.attached_vols.append(evol)
                         else:

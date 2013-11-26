@@ -46,7 +46,7 @@ import sys
 import logging
 import time
 
-class Eulogger(object):
+class Logger(object):
     #constructor for the Eulogger
     def __init__(self,
                  parent_logger_name = 'eutester',

@@ -43,7 +43,7 @@ import socket
 import sys
 import traceback
 import StringIO
-import eulogger
+from eutester.utils.logger import Logger
 import types
 import operator
 
@@ -68,7 +68,7 @@ class Eutester(object):
         self.credpath = credpath
         
         ### Eutester logs
-        self.logger = eulogger.Eulogger(identifier="EUTESTER")
+        self.logger = Logger(identifier="EUTESTER")
         self.debug = self.logger.log.debug
         self.critical = self.logger.log.critical
         self.info = self.logger.log.info

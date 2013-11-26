@@ -36,10 +36,8 @@ import re
 import os
 import sys
 import tempfile
-
-from eutester.euconfig import EuConfig
-
-import logger
+from eutester.euca.config import Config
+from eutester.utils.logger import Logger
 from eutester import Eutester
 from eutester.utils import sshconnection
 from repoutils import RepoUtils
@@ -122,7 +120,7 @@ class Machine:
         self.log_active = {}
         self.wget_last_status = 0
         if self.debugmethod is None:
-            logger = logger.Eulogger(identifier= str(hostname) + ":" + str(components))
+            logger = Logger(identifier= str(hostname) + ":" + str(components))
             self.debugmethod = logger.log.debug
         if self.connect:
             self.ssh = sshconnection.SshConnection( hostname, 
@@ -671,7 +669,7 @@ class Machine:
                 self.debug(out)
         else:
             try:
-                config = EuConfig(filename=use_path, ssh=self.ssh, default_section_name='eucalyptus_conf')
+                config = Config(filename=use_path, ssh=self.ssh, default_section_name='eucalyptus_conf')
                 self.config = config
                 if hasattr(config, 'eucalyptus_conf'):
                     self.eucalyptus_conf = config.eucalyptus_conf

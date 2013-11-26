@@ -71,7 +71,7 @@ import types
 import re
 import copy
 
-class Euproperty_Type():
+class PropertyType():
     authentication = 'authentication'
     bootstrap = 'bootstrap'
     cloud = 'cloud'
@@ -96,10 +96,10 @@ class Euproperty_Type():
             raise ae
 
 
-class Euproperty():
+class Property():
     def __init__(self, prop_mgr, property_string, service_type,  partition, name, value, mandatory=False):
         self.prop_mgr = prop_mgr
-        self.service_type = Euproperty_Type.get_type_by_string(service_type)
+        self.service_type = PropertyType.get_type_by_string(service_type)
         self.partition = partition
         self.name = name
         self.value = value
@@ -148,7 +148,7 @@ class Euproperty():
         return ret
 
     
-class Euproperty_Manager():
+class PropertyManager():
     tester = None
     verbose = False
     debugmethod = None
@@ -181,43 +181,43 @@ class Euproperty_Manager():
             self.debugmethod(msg)
 
     def show_all_authentication_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.authentication, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.authentication, partition=partition,debug_method=debug_method)
 
     def show_all_bootstrap_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.bootstrap, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.bootstrap, partition=partition,debug_method=debug_method)
 
     def show_all_cloud_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.cloud, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.cloud, partition=partition,debug_method=debug_method)
 
     def show_all_cluster_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.cluster, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.cluster, partition=partition,debug_method=debug_method)
 
     def show_all_reporting_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.reporting, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.reporting, partition=partition,debug_method=debug_method)
 
     def show_all_storage_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.storage, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.storage, partition=partition,debug_method=debug_method)
 
     def show_all_system_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.system, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.system, partition=partition,debug_method=debug_method)
 
     def show_all_vmwarebroker_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.vmwarebroker, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.vmwarebroker, partition=partition,debug_method=debug_method)
 
     def show_all_walrus_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.walrus, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.walrus, partition=partition,debug_method=debug_method)
 
     def show_all_www_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.www, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.www, partition=partition,debug_method=debug_method)
 
     def show_all_autoscaling_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.autoscaling, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.autoscaling, partition=partition,debug_method=debug_method)
 
     def show_all_loadbalancing_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.loadbalancing, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.loadbalancing, partition=partition,debug_method=debug_method)
 
     def show_all_tagging_properties(self,partition=None,debug_method=None):
-        return self.show_all_properties(service_type=Euproperty_Type.tagging, partition=partition,debug_method=debug_method)
+        return self.show_all_properties(service_type=PropertyType.tagging, partition=partition,debug_method=debug_method)
 
 
     def show_all_properties(self,
@@ -331,7 +331,7 @@ class Euproperty_Manager():
         #Move along items in list until we reach a service type
         for index in xrange(0,len(propattrs)):
             try:
-                ret_service_type = Euproperty_Type.get_type_by_string(propattrs[index])
+                ret_service_type = PropertyType.get_type_by_string(propattrs[index])
                 propattrs.remove(propattrs[index])
                 break
             except AttributeError:
@@ -342,7 +342,7 @@ class Euproperty_Manager():
 
         #Store the name of the property
         ret_name = ".".join(propattrs)
-        newprop = Euproperty(self, ret_property_string, ret_service_type,  ret_partition, ret_name, ret_value)
+        newprop = Property(self, ret_property_string, ret_service_type,  ret_partition, ret_name, ret_value)
         self.create_dynamic_property_methods_from_property(newprop)
         return newprop
 
@@ -403,7 +403,7 @@ class Euproperty_Manager():
         for property in list:
             if property.name == name:
                 return property
-        raise EupropertyNotFoundException('Property not found by name:'+str(name))
+        raise PropertyNotFoundException('Property not found by name:'+str(name))
         
     def get_all_properties_for_partition(self, partition, list=None, verbose=False):
         self.debug('Get all properties for partition:'+str(partition))
@@ -434,7 +434,7 @@ class Euproperty_Manager():
         return props
 
     def set_property(self, property, value):
-        if isinstance(property,Euproperty):
+        if isinstance(property,Property):
 
             return self.set_property_by_property_string(property.property_string, value)
         else:
@@ -449,7 +449,7 @@ class Euproperty_Manager():
         eucaops - optional - the eucaops/eutester object to set the property at
         '''
         value = str(value)
-        if not isinstance(property,Euproperty):
+        if not isinstance(property,Property):
             try:
                 property = self.get_all_properties_by_search_string(property)
                 if len(property) > 1:
@@ -465,10 +465,10 @@ class Euproperty_Manager():
         if (ret_string):
             ret_value= str(ret_string).split()[2]
         else:
-            raise EupropertiesException("set_property output from modify was None")
+            raise PropertyException("set_property output from modify was None")
         
         if (ret_value != value):
-            raise EupropertiesException("set property("+property.property_string+") to value("+str(value)+") failed.Ret Value ("+str(ret_value)+")\nRet String\n"+ret_string)
+            raise PropertyException("set property("+property.property_string+") to value("+str(value)+") failed.Ret Value ("+str(ret_value)+")\nRet String\n"+ret_string)
         property.value = ret_value
         return ret_value
         
@@ -480,7 +480,7 @@ class Euproperty_Manager():
         ucaops - optional - the eucaops/eutester object to set the property at
         '''
 
-        if not isinstance(prop, Euproperty):
+        if not isinstance(prop, Property):
                prop = self.get_all_properties_by_search_string(prop)[0]
         property_string = prop.property_string
         prop.lastvalue = prop.value
@@ -497,7 +497,7 @@ class Euproperty_Manager():
         ireadthewarning - mandatory - boolean, to warn user this method is intrusive 
         '''
         if (ireadthewarning is False):
-            raise EupropertiesException("ireadthewarning is set to false in get_property_default_value")
+            raise PropertyException("ireadthewarning is set to false in get_property_default_value")
     
         original = prop.get()
         default = self.reset_property_to_default(prop)
@@ -757,13 +757,13 @@ class Euproperty_Manager():
         return self.set_property(  'walrus.storagemaxtotalsnapshotsizeingb', value)
     '''
     
-class EupropertiesException(Exception):
+class PropertyException(Exception):
     def __init__(self, value):
         self.value = value
     def __str__ (self):
         return repr(self.value)
 
-class EupropertyNotFoundException(Exception):
+class PropertyNotFoundException(Exception):
     def __init__(self, value):
         self.value = value
 def __str__ (self):

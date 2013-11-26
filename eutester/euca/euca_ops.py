@@ -32,22 +32,22 @@
 # Author: matt.clark@eucalyptus.com
 from boto.ec2.image import Image
 from boto.ec2.volume import Volume
-from cwops import CWops
-from asops import ASops
-from euca_ops.elbops import ELBops
-from iamops import IAMops
-from ec2ops import EC2ops
-from s3ops import S3ops
-from stsops import STSops
+from eutester.aws.cloudwatch.cloudwatch_ops import CWops
+from eutester.aws.autoscaling.autoscaling_ops import ASops
+from eutester.aws.elb.elb_ops import ELBops
+from eutester.aws.iam.iam_ops import IAMops
+from eutester.aws.ec2.ec2_ops import EC2ops
+from eutester.aws.s3.s3_ops import S3ops
+from eutester.aws.sts.sts_ops import STSops
 import time
-from eutester.euservice import EuserviceManager
+from eutester.euca.service import ServiceManager
 from boto.ec2.instance import Reservation
 from boto.exception import EC2ResponseError
-from eutester.euconfig import EuConfig
-from eutester.euproperties import Euproperty_Manager
-from eutester.machine import Machine
-from eutester.euvolume import EuVolume
-from eutester import eulogger
+from eutester.euca.config import Config
+from eutester.euca.properties import PropertyManager
+from eutester.utils.machine import Machine
+from eutester.aws.ec2.volume import Volume
+from eutester.utils.logger import Logger
 import re
 import os
 
@@ -74,7 +74,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
         self.clc_index = 0
         self.credpath = credpath
         self.download_creds = download_creds
-        self.logger = eulogger.Eulogger(identifier="EUCAOPS")
+        self.logger = Logger(identifier="EUCAOPS")
         self.debug = debug_method or self.logger.log.debug
         self.critical = self.logger.log.critical
         self.info = self.logger.log.info
@@ -123,7 +123,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
                         self.sftp = self.clc.ssh.connection.open_sftp()
                         self.get_credentials(account,user)
                         
-                self.service_manager = EuserviceManager(self)
+                self.service_manager = ServiceManager(self)
                 self.clc = self.service_manager.get_enabled_clc().machine
                 self.walrus = self.service_manager.get_enabled_walrus().machine 
 
@@ -367,8 +367,8 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             if vol:
                 try:
                     vol.update()
-                    if not isinstance(vol, EuVolume):
-                        vol = EuVolume.make_euvol_from_vol(vol, self)
+                    if not isinstance(vol, Volume):
+                        vol = Volume.make_euvol_from_vol(vol, self)
                     euvolumes.append(vol)
                 except:
                     tb = self.get_traceback()
@@ -461,7 +461,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
         f = None
         try:
             #f = open(filepath, 'r')
-            self.testconf = EuConfig(filepath, legacy_qa_config=True)
+            self.testconf = Config(filepath, legacy_qa_config=True)
             f = self.testconf.legacybuf.splitlines()
         except IOError as (errno, strerror):
             self.debug( "ERROR: Could not find config file " + self.config_file)
@@ -508,7 +508,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
 
     def update_property_manager(self,machine=None):
         machine = machine or self.clc
-        self.property_manager = Euproperty_Manager(self,debugmethod=self.debug)
+        self.property_manager = PropertyManager(self,debugmethod=self.debug)
 
     def swap_clc(self):
         all_clcs = self.get_component_machines("clc")

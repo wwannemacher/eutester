@@ -8,10 +8,10 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from eucaops import Eucaops
-from eutester.euinstance import EuInstance
-from eutester.eutestcase import EutesterTestCase
-from eucaops import EC2ops
+from eutester.euca.euca_ops import Eucaops
+from eutester.aws.ec2.instance import Instance
+from eutester.utils.testcase import EutesterTestCase
+from eutester.aws.ec2.ec2_ops import EC2ops
 import os
 import re
 import random
@@ -129,7 +129,7 @@ class InstanceBasics(EutesterTestCase):
             self.tester.disassociate_address_from_instance(instance)
             self.tester.release_address(self.address)
             self.address = None
-            assert isinstance(instance, EuInstance)
+            assert isinstance(instance, Instance)
             self.tester.sleep(5)
             instance.update()
             self.assertTrue( self.tester.ping(instance.ip_address), "Could not ping after dissassociate")
@@ -250,7 +250,7 @@ class InstanceBasics(EutesterTestCase):
             # Perform DNS resolution against public IP and public DNS name
             # Perform DNS resolution against private IP and private DNS name
             # Check to see if nslookup was able to resolve
-            assert isinstance(instance, EuInstance)
+            assert isinstance(instance, Instance)
             # Check nslookup to resolve public DNS Name to local-ipv4 address
             self.assertTrue(instance.found("nslookup " + instance.public_dns_name + " " + self.tester.ec2.host, instance.private_ip_address), "Incorrect DNS resolution for hostname.")
             # Check nslookup to resolve public-ipv4 address to public DNS name
