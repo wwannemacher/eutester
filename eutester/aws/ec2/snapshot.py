@@ -41,7 +41,7 @@ import time
 
 
 
-class EuSnapshot(Snapshot, TaggedResource):
+class Snapshot(Snapshot, TaggedResource):
     eutest_volume_md5 = None
     eutest_volume_md5len = None
     eutest_volume_zone = None
@@ -59,7 +59,7 @@ class EuSnapshot(Snapshot, TaggedResource):
         
     @classmethod
     def make_eusnap_from_snap(cls, snapshot, tester=None, cmdstart=None):
-        newsnap = EuSnapshot(snapshot.connection)
+        newsnap = Snapshot(snapshot.connection)
         newsnap.__dict__ = snapshot.__dict__
         newsnap.eutest_volume_md5 = None
         newsnap.tester = tester
@@ -79,7 +79,7 @@ class EuSnapshot(Snapshot, TaggedResource):
         return newsnap
     
     def update(self):
-        super(EuSnapshot, self).update()
+        super(Snapshot, self).update()
         self.set_last_status()
     
     def set_last_status(self,status=None):

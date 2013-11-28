@@ -31,16 +31,19 @@
 #
 # Author: Vic Iglesias vic.iglesias@eucalyptus.com
 # Author: Shaon shaon@eucalyptus.com
+#
+# Example:
+#
 
 
 import os
 import time
-from eucaops import Eucaops
-from eutester.euinstance import EuInstance
-from eutester.eutestcase import EutesterTestCase
+from eutester.euca.euca_ops import Eucaops
+from eutester.aws.ec2.instance import Instance
+from eutester.utils.testcase import EutesterTestCase
 import random
-from eutester.euvolume import EuVolume
-from testcases.cloud_user.instances.bfebstest import BFEBSBasics
+from eutester.aws.ec2.volume import Volume
+from eutester.testcases.instances.bfebstest import BFEBSBasics
 
 
 class MigrationTest(EutesterTestCase):
@@ -58,18 +61,18 @@ class MigrationTest(EutesterTestCase):
         if len(self.numberOfNodes) < 2:
             exit("Not enough NCs to test instance migration.")
 
-        self.group = self.tester.add_group(group_name="group-" + str(time.time()))
-        self.tester.authorize_group_by_name(group_name=self.group.name )
-        self.tester.authorize_group_by_name(group_name=self.group.name, port=-1, protocol="icmp" )
+        self.group = self.tester.ec2.add_group(group_name="group-" + str(time.time()))
+        self.tester.ec2.authorize_group_by_name(group_name=self.group.name )
+        self.tester.ec2.authorize_group_by_name(group_name=self.group.name, port=-1, protocol="icmp" )
 
-        self.keypair = self.tester.add_keypair( "keypair-" + str(time.time()))
+        self.keypair = self.tester.ec2.add_keypair( "keypair-" + str(time.time()))
         self.keypath = '%s/%s.pem' % (os.curdir, self.keypair.name)
 
         self.image = self.args.emi
         if not self.image:
-            self.image = self.tester.get_emi(root_device_type="instance-store")
+            self.image = self.tester.ec2.get_emi(root_device_type="instance-store",not_location="loadbalancer")
         self.numberOfResources = 3
-        zones = self.tester.ec2.get_all_zones()
+        zones = self.tester.ec2.connection.get_all_zones()
         self.zone = random.choice(zones).name
 
         try:
@@ -83,9 +86,9 @@ class MigrationTest(EutesterTestCase):
 
     def MigrationBasic(self, volume=None):
         enabled_clc = self.tester.service_manager.get_enabled_clc().machine
-        self.reservation = self.tester.run_instance(self.image, username=self.args.instance_user, keypair=self.keypair.name, group=self.group.name, zone=self.zone)
+        self.reservation = self.tester.ec2.run_instance(self.image, username=self.args.instance_user, keypair=self.keypair.name, group=self.group.name, zone=self.zone)
         instance = self.reservation.instances[0]
-        assert isinstance(instance, EuInstance)
+        assert isinstance(instance, Instance)
         volume_device = None
         if volume is not None:
             volume_device = instance.attach_euvolume(volume)
@@ -112,13 +115,13 @@ class MigrationTest(EutesterTestCase):
         else:
             destination_nc.machine.sys("esxcli vm process list | grep " + instance.id, code=0)
 
-        self.tester.terminate_instances(reservation=self.reservation)
+        self.tester.ec2.terminate_instances(reservation=self.reservation)
         if volume is not None:
             self.tester.delete_volume(volume)
 
     def MigrationInstanceStoreWithVol(self):
         volume = self.tester.create_volume(zone=self.zone)
-        assert isinstance(volume, EuVolume)
+        assert isinstance(volume, Volume)
         self.MigrationBasic(volume)
 
     def MigrationBasicEBSBacked(self, volume=None):
@@ -127,7 +130,7 @@ class MigrationTest(EutesterTestCase):
 
     def MigrationBasicEBSBackedWithVol(self):
         volume = self.tester.create_volume(zone=self.zone)
-        assert isinstance(volume, EuVolume)
+        assert isinstance(volume, Volume)
         self.MigrationBasicEBSBacked(volume)
 
     def MigrateToDest(self):
@@ -198,7 +201,7 @@ class MigrationTest(EutesterTestCase):
         for i in xrange(3):
             instance = self.reservation.instances[i]
             instance_list.append(instance)
-            assert isinstance(instance, EuInstance)
+            assert isinstance(instance, Instance)
             volume_device = None
             if volume_list:
                 volume_device = instance.attach_euvolume(volume_list[i])
@@ -236,7 +239,7 @@ class MigrationTest(EutesterTestCase):
         volume_list = []
         for i in xrange(self.numberOfResources):
             volume = self.tester.create_volume(zone=self.zone)
-            assert isinstance(volume, EuVolume)
+            assert isinstance(volume, Volume)
             volume_list.append(volume)
         self.EvacuateNC(volume_list)
 
