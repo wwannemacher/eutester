@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from eutester.eutestcase import EutesterTestCase
+from eutester.utils.testcase import EutesterTestCase
 from instancetest import InstanceBasics
 
 class BFEBSBasics(InstanceBasics):
@@ -20,16 +20,16 @@ class BFEBSBasics(InstanceBasics):
         if not self.imgurl:
             raise Exception("No imgurl passed to run BFEBS tests")
         if not self.reservation:
-            self.run_instance_params['image'] = self.tester.get_emi(root_device_type="instance-store",not_location="loadbalancer")
-            self.reservation = self.tester.run_instance(**self.run_instance_params)
+            self.run_instance_params['image'] = self.tester.ec2.get_emi(root_device_type="instance-store",not_location="loadbalancer")
+            self.reservation = self.tester.ec2.run_instance(**self.run_instance_params)
         for instance in self.reservation.instances:
-            self.volume = self.tester.create_volume(zone=self.zone, size=3)
+            self.volume = self.tester.ec2.create_volume(zone=self.zone, size=3)
             self.volume_device = instance.attach_volume(self.volume)
             instance.sys("curl " +  self.imgurl + " > " + self.volume_device, timeout=800, code=0)
-            snapshot = self.tester.create_snapshot(self.volume.id)
-            image_id = self.tester.register_snapshot(snapshot)
-        self.run_instance_params['image'] = self.tester.get_emi(image_id)
-        self.tester.terminate_instances(self.reservation)
+            snapshot = self.tester.ec2.create_snapshot(self.volume.id)
+            image_id = self.tester.ec2.register_snapshot(snapshot)
+        self.run_instance_params['image'] = self.tester.ec2.get_emi(image_id)
+        self.tester.ec2.terminate_instances(self.reservation)
         self.reservation = None
 
     def StopStart(self, zone = None):
