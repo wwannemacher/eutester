@@ -217,12 +217,13 @@ public class S3BucketTests {
 		} finally {
 			assertTrue("Expected to receive a 501 NotImplemented error but did not", error);
 		}
+
 	}
 
 	/**
 	 * Test for changing logging configuration of a bucket and verifying it.
 	 */
-	@Test
+	@Test(enabled = false)
 	public void loggingConfiguration() throws Exception {
 		testInfo(this.getClass().getSimpleName() + " - loggingConfiguration");
 

@@ -1,6 +1,6 @@
 # Software License Agreement (BSD License)
 #
-# Copyright (c) 2009-2011, Eucalyptus Systems, Inc.
+# Copyright (c) 2009-2014, Eucalyptus Systems, Inc.
 # All rights reserved.
 #
 # Redistribution and use of this software in source and binary forms, with or
@@ -79,6 +79,12 @@ class CFNops(Eutester):
         """Parse the eucarc for the AWS_CLOUDFORMATION_URL"""
         cfn_url = self.parse_eucarc("AWS_CLOUDFORMATION_URL")
         return cfn_url.split("/")[2].split(":")[0]
+
+    def get_cfn_path(self):
+        """Parse the eucarc for the AWS_CLOUDFORMATION_URL"""
+        cfn_url = self.parse_eucarc("AWS_CLOUDFORMATION_URL")
+        cfn_path = "/".join(cfn_url.split("/")[3:])
+        return cfn_path
 
     def create_stack(self, stack_name, template_body, template_url=None, parameters=None):
         self.info("Creating stack: {0}".format(stack_name))

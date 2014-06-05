@@ -10,12 +10,20 @@
 
 #Author: Zach Hill <zach@eucalyptus.com>
 #Author: Vic Iglesias <vic@eucalyptus.com>
-#Author: Neil Soman <neil@eucalyptus.com>
+import base64
 
 import time
 import random
-import tempfile
 import os
+import tempfile
+from datetime import timedelta
+import datetime
+from datetime import datetime
+import hashlib
+import json
+import hmac
+from io import BytesIO
+from io import FileIO
 
 from boto.s3.key import Key
 from boto.s3.prefix import Prefix
@@ -23,9 +31,12 @@ from boto.exception import S3ResponseError
 from boto.sdb.db import model
 import dateutil.parser
 
+
 from eucaops import Eucaops
 from eutester.eutestcase import EutesterTestCase
 from eucaops import S3ops
+
+import requests
 
 
 class ObjectTestSuite(EutesterTestCase):
@@ -79,7 +90,46 @@ class ObjectTestSuite(EutesterTestCase):
         except Exception as e:
             self.tester.debug("Exception occured during 'PUT' of object " + object_key + " into bucket " + bucket.name + ": " + e.message)
             raise e
-        
+
+    def post_object(self, bucket_name=None, object_key=None, object_data=None, policy=None, acl=None):
+        """Uploads an object using POST + form upload"""
+        fields = {
+            'key' : object_key,
+            'acl' : acl,
+            'AWSAccessKeyId': self.tester.get_access_key(),
+            'Policy' : policy,
+            'Signature': self.sign_policy(sak=self.tester.get_secret_key(), b64_policy_json=policy)
+        }
+
+        self.tester.info('Fields: ' + str(fields))
+        url = 'http://' + self.tester.s3.host + ':' + str(self.tester.s3.port) \
+              + '/' + self.tester.s3.path + '/' + bucket_name
+
+        self.tester.debug('Sending POST request to: ' + url)
+        response = requests.post(url, data=fields, files={'file': BytesIO(object_data)})
+        return response
+        #return None
+
+    def generate_default_policy_b64(self, bucket, key, acl):
+        delta = timedelta(hours=1)
+        expire_time = (datetime.utcnow() + delta).replace(microsecond=0)
+
+        policy = {'conditions': [{'acl': acl},
+                                 {'bucket': bucket},
+                                 {'key': key},
+                                ],
+                  'expiration': time.strftime('%Y-%m-%dT%H:%M:%SZ',
+                                              expire_time.timetuple())}
+        policy_json = json.dumps(policy)
+        self.tester.info('generated default policy: %s', policy_json)
+        return base64.b64encode(policy_json)
+
+    def sign_policy(self, sak=None, b64_policy_json=None):
+        my_hmac = hmac.new(sak, digestmod=hashlib.sha1)
+        my_hmac.update(b64_policy_json)
+        return base64.b64encode(my_hmac.digest())
+
+     
     def enable_versioning(self, bucket):
         """Enable versioning on the bucket, checking that it is not already enabled and that the operation succeeds."""
         vstatus = bucket.get_versioning_status()
@@ -192,14 +242,17 @@ class ObjectTestSuite(EutesterTestCase):
 
         #Test HEAD
         key_meta = self.test_bucket.get_key(testkey)
-        if key_meta != ret_key:
+        if key_meta.key != ret_key.key or key_meta.etag != ret_key.etag or key_meta.size != ret_key.size:
             self.tester.info("Something is wrong, the HEAD operation returned different metadata than the GET operation")
+            self.tester.info("Expected key " + ret_key.key + " etag: " + ret_key.etag + " Got: " + key_meta.key + " etag: " + key_meta.etag)
         else:
             self.tester.info("HEAD meta = GET meta, all is good")
 
         #Test copy operation (GET w/source headers)
+        self.tester.info("Testing COPY object")
+
         new_key = "testkey2"
-        self.test_bucket.copy_key(new_key, self.test_bucket_name,testkey)
+        self.test_bucket.copy_key(new_key_name=new_key, src_bucket_name=self.test_bucket_name, src_key_name=testkey)
         keylist = self.test_bucket.list()
         counter = 0
         for k in keylist:
@@ -291,19 +344,86 @@ class ObjectTestSuite(EutesterTestCase):
 
     def test_object_post(self):
         """Test the POST method for putting objects, requires a pre-signed upload policy and url"""
-        self.fail("Test not implemented")
+        self.tester.info("Testing POST form upload on bucket" + self.test_bucket_name)
+        self.test_bucket = self.clear_and_rebuild_bucket(self.test_bucket_name)
+        itr = 1
+        self.tester.info('Doing ' + str(itr) + ' POST upload iterations')
+        acl = 'ec2-bundle-read'
+        for k in xrange(0, itr):
+            key = 'postkey1' + str(k)
+            data = os.urandom(512)
+            computed_md5 = '"' + hashlib.md5(data).hexdigest() + '"'
+            self.tester.info('Data md5: ' + computed_md5 + ' data length: ' + str(len(computed_md5)))
+            self.tester.info('Uploading object ' + self.test_bucket_name + '/' + key + ' via POST with acl : ' + acl)
+            response = self.post_object(bucket_name=self.test_bucket_name,
+                                        object_key=key,
+                                        object_data=data,
+                                        acl=acl,
+                                        policy=self.generate_default_policy_b64(self.test_bucket_name, key, acl=acl))
+
+            self.tester.info('Got response for POST: ' + str(response.status_code) + ': ' + str(response.text))
+            assert(response.status_code == 204)
+            fetched_key = self.test_bucket.get_key(key)
+            fetched_content = fetched_key.get_contents_as_string()
+            self.tester.info('Got fetched md5: ' + fetched_key.etag)
+            self.tester.info('Calculated md5: ' + computed_md5 + ' recieved md5 ' + fetched_key.etag)
+            assert(fetched_key.etag == computed_md5)
+            assert(fetched_content == data)
+
+        self.tester.info("Done with upload test")
+
+    def test_object_post_large(self):
+        """Test the POST method for putting objects, requires a pre-signed upload policy and url"""
+        self.tester.info("Testing POST form upload on bucket" + self.test_bucket_name)
+        self.test_bucket = self.clear_and_rebuild_bucket(self.test_bucket_name)
+        self.tester.info("Testing POST form upload of 10MB data on bucket" + self.test_bucket_name)
+        itr = 1
+        large_obj_size_bytes = 10 * 1024 * 1024 #10MB content
+        self.tester.info('Doing ' + str(itr) + ' iterations of large object of size ' + str(large_obj_size_bytes) + ' with POST')
+        acl = 'ec2-bundle-read'
+        for i in xrange(0, itr):
+            key = 'postkey_10mb_' + str(i)
+            self.tester.info('Generating ' + str(large_obj_size_bytes) + ' bytes for upload')
+            #Create some test data
+            data = str(os.urandom(large_obj_size_bytes))
+
+            self.tester.info("Data length: " + str(len(data)))
+            computed_md5 = '"' + hashlib.md5(data).hexdigest() + '"'
+            self.tester.info('Data md5 is: ' + computed_md5)
+
+            self.tester.info('Uploading object via POST using acl: ' + acl)
+            response = self.post_object(bucket_name=self.test_bucket.name,
+                                        object_key=key,
+                                        object_data=data,
+                                        policy=self.generate_default_policy_b64(self.test_bucket.name, key, acl=acl),
+                                        acl=acl)
+
+            self.tester.info('Got response for POST: ' + str(response.status_code) + ': ' + str(response.text))
+            assert(response.status_code == 204)
+
+            self.tester.info('Fetching the content for verification')
+            fetched_key = self.test_bucket.get_key(key_name=key)
+            self.tester.info('Got fetched content length : ' + str(fetched_key.size) + ' Expected ' + str(len(data)))
+            assert(fetched_key.size == len(data))
+            self.tester.info('Got fetched md5: ' + fetched_key.etag)
+            self.tester.info('Calculated md5: ' + computed_md5 + ' recieved md5 ' + fetched_key.etag)
+            assert(fetched_key.etag == computed_md5)
+            fetched_content = fetched_key.get_contents_as_string()
+            assert(fetched_content == data)
+
 
     def test_object_large_objects(self):
         """Test operations on large objects (>1MB), but not so large that we must use the multi-part upload interface"""
         self.tester.info("Testing large-ish objects over 1MB in size on bucket" + self.test_bucket_name)
         self.test_bucket = self.clear_and_rebuild_bucket(self.test_bucket_name)
-        test_data = ""
+        test_data = None
         large_obj_size_bytes = 5 * 1024 * 1024 #5MB
         self.tester.info("Generating " + str(large_obj_size_bytes) + " bytes of data")
 
         #Create some test data
-        for i in range(0, large_obj_size_bytes):
-            test_data += chr(random.randint(32,126))
+        #for i in range(0, large_obj_size_bytes):
+        #    test_data += chr(random.randint(32,126))
+        test_data = bytearray(os.urandom(large_obj_size_bytes))
 
         self.tester.info("Uploading object content of size: " + str(large_obj_size_bytes) + " bytes")
         keyname = "largeobj-" + str(int(time.time()))
@@ -330,6 +450,51 @@ class ObjectTestSuite(EutesterTestCase):
         self.test_multipart_upload()
         self.test_abort_multipart_upload()
 
+    def test_multipart_upload(self):
+        '''Basic multipart upload'''
+        self.tester.info("Testing multipart upload")
+        self.tester.info("Creating random file representing part...")
+        temp_file = tempfile.NamedTemporaryFile(mode="w+b", prefix="multipart")
+        temp_file.write(os.urandom(5 * 1024 * 1024))
+        keyname="multi-" + str(int(time.time()))
+        self.tester.info("Initiating multipart upload...much upload")
+        reply = self.initiate_multipart_upload(keyname)
+        self.tester.info("Uploading parts...Such Parts")
+        for partnum in range(1, 11):
+            temp_file.seek(0, os.SEEK_SET)
+            reply.upload_part_from_file(temp_file, partnum)
+        self.tester.info("Listing parts...")
+        self.test_bucket.get_all_multipart_uploads()
+        self.tester.info("Completing upload...So OSG")
+        reply.complete_upload()
+        temp_file.close()
+        self.tester.info("HEAD request...");
+        returned_key = self.test_bucket.get_key(keyname, validate=True);
+        download_temp_file = tempfile.NamedTemporaryFile(mode="w+b", prefix="mpu-download")
+        self.tester.info("Downloading object...very mpu");
+        returned_key.get_contents_to_file(download_temp_file);
+        self.tester.info("Deleting object...WOW")
+        self.test_bucket.delete_key(keyname)
+
+    def test_abort_multipart_upload(self):
+        '''Basic multipart upload'''
+        self.tester.info("Testing abort multipart upload")
+        temp_file = tempfile.NamedTemporaryFile(mode="w+b", prefix="multipart")
+        temp_file.write(os.urandom(5 * 1024 * 1024))
+        keyname="multi-" + str(int(time.time()))
+        reply = self.initiate_multipart_upload(keyname)
+        for partnum in range(1, 11):
+            temp_file.seek(0, os.SEEK_SET)
+            reply.upload_part_from_file(temp_file, partnum)
+        self.test_bucket.get_all_multipart_uploads()
+        self.tester.info("Canceling upload")
+        reply.cancel_upload()
+        temp_file.close()
+
+    def initiate_multipart_upload(self, keyname):
+        self.tester.info("Initiating multipart upload " + keyname)
+        return self.test_bucket.initiate_multipart_upload(keyname)
+
     def test_object_versioning_enabled(self):
         """Tests object versioning for get/put/delete on a versioned bucket"""
         self.tester.info("Testing bucket Versioning-Enabled")
@@ -351,22 +516,25 @@ class ObjectTestSuite(EutesterTestCase):
         #Get v1
         obj_v1 = self.test_bucket.get_key(keyname)
         self.tester.check_md5(eTag=obj_v1.etag,data=v1data)
-
-        self.tester.info("Initial bucket state after object uploads without versioning:")
+        
+        self.tester.info("Initial bucket state after object uploads with versioning enabled:")
         self.print_key_info(keys=[obj_v1])
 
+        self.tester.info("Adding another version")
         #Put v2 (and get/head to confirm success)
         self.put_object(bucket=self.test_bucket, object_key=keyname,object_data=v2data)
         obj_v2 = self.test_bucket.get_key(keyname)
         self.tester.check_md5(eTag=obj_v2.etag,data=v2data)
         self.print_key_info(keys=[obj_v1, obj_v2])
 
+        self.tester.info("Adding another version")
         #Put v3 (and get/head to confirm success)
         self.put_object(bucket=self.test_bucket, object_key=keyname,object_data=v3data)
         obj_v3 = self.test_bucket.get_key(keyname)
         self.tester.check_md5(eTag=obj_v3.etag,data=v3data)
         self.print_key_info(keys=[obj_v1, obj_v2, obj_v3])
 
+        self.tester.info("Getting specific version")
         #Get a specific version, v1
         v1_return = self.test_bucket.get_key(key_name=keyname,version_id=obj_v1.version_id)
         self.print_key_info(keys=[v1_return])
@@ -380,16 +548,19 @@ class ObjectTestSuite(EutesterTestCase):
             raise S3ResponseError(404, "Should have thrown this exception for getting a non-existent object")
 
         #Restore v1 using copy
+        self.tester.info("Restoring version")
         try:
             self.test_bucket.copy_key(new_key_name=obj_v1.key,src_bucket_name=self.test_bucket_name,src_key_name=keyname,src_version_id=obj_v1.version_id)
         except S3ResponseError as e:
             self.fail("Failed to restore key from previous version using copy got error: " + str(e.status))
 
         restored_obj = self.test_bucket.get_key(keyname)
+        assert(restored_obj != None)
         self.tester.check_md5(eTag=restored_obj.etag,data=v1data)
         self.print_key_info(keys=[restored_obj])
 
         #Put v3 again
+        self.tester.info("Adding another version")
         self.put_object(bucket=self.test_bucket, object_key=keyname,object_data=v3data)
         self.tester.check_md5(eTag=obj_v3.etag,data=v3data)
         self.print_key_info([self.test_bucket.get_key(keyname)])
@@ -501,8 +672,8 @@ class ObjectTestSuite(EutesterTestCase):
             self.tester.info("Versioning status correctly set to enabled")
         else:
             self.tester.info("Versionign status not enabled, should be.")
-
-            #Update a subset of the keys
+        
+        #Update a subset of the keys
         key1_etag2=self.put_object(bucket=self.test_bucket, object_key=keyname1,object_data=v2data)
         key2_etag2=self.put_object(bucket=self.test_bucket, object_key=keyname2,object_data=v2data)
 
@@ -547,14 +718,13 @@ class ObjectTestSuite(EutesterTestCase):
         for bucket in self.buckets_used:
             try:
                 self.tester.info('Checking bucket ' + bucket + ' for possible cleaning/delete')
-                if self.tester.s3.bucket_exists(bucket):
+                if self.tester.s3.head_bucket(bucket) != None:
                     self.tester.info('Found bucket exists, cleaning it')
                     self.tester.clear_bucket(bucket)
-                    self.buckets_used.remove(bucket)
                 else:
                     self.tester.info('Bucket ' + bucket + ' not found, skipping')
-            except:
-                self.tester.info('Exception checking bucket ' + bucket)
+            except Exception as e:
+                self.tester.info('Exception checking bucket ' + bucket + ' Exception msg: ' + e.message)
         return
 
     def test_multipart_upload(self):
@@ -608,13 +778,16 @@ if __name__ == "__main__":
 
     testcase = ObjectTestSuite()
     ### Either use the list of tests passed from config/command line to determine what subset of tests to run
-    list = testcase.args.tests or [#'test_object_basic_ops',]# \
-                                   #'test_object_byte_offset_read']#, \
-                                   #'test_object_large_objects']#, \
-                                   #'test_object_versionlisting', \
-                                   #'test_object_versioning_enabled', \
-                                   #'test_object_versioning_suspended', \
-                                   'test_object_multipart']
+    list = testcase.args.tests or ['test_object_basic_ops',
+                                   ### 'test_object_byte_offset_read',
+                                   'test_object_large_objects',
+                                   'test_object_versionlisting',
+                                   'test_object_versioning_enabled',
+                                   'test_object_versioning_suspended',
+                                   'test_object_multipart',
+                                   'test_object_post',
+                                   'test_object_post_large']
+
     ### Convert test suite methods to EutesterUnitTest objects
     unit_list = [ ]
     for test in list:

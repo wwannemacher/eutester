@@ -1,6 +1,6 @@
 # Software License Agreement (BSD License)
 #
-# Copyright (c) 2009-2011, Eucalyptus Systems, Inc.
+# Copyright (c) 2009-2014, Eucalyptus Systems, Inc.
 # All rights reserved.
 #
 # Redistribution and use of this software in source and binary forms, with or
@@ -30,10 +30,12 @@
 #
 # Author: vic.iglesias@eucalyptus.com
 # Author: matt.clark@eucalyptus.com
+
 from boto.ec2.image import Image
 from boto.ec2.volume import Volume
 from cwops import CWops
 from asops import ASops
+from eucaops.cfnops import CFNops
 from eucaops.elbops import ELBops
 from iamops import IAMops
 from ec2ops import EC2ops
@@ -54,12 +56,14 @@ from eutester import eulogger
 import re
 import os
 
-class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
+class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops, CFNops):
     
     def __init__(self, config_file=None, password=None, keypath=None, credpath=None, aws_access_key_id=None,
                  aws_secret_access_key = None,  account="eucalyptus", user="admin", username=None, APIVersion='2011-01-01',
-                 region=None, ec2_ip=None, s3_ip=None, s3_path=None, as_ip=None, elb_ip=None, download_creds=True,boto_debug=0,
-                 debug_method=None):
+                 ec2_ip=None, ec2_path=None, iam_ip=None, iam_path=None, s3_ip=None, s3_path=None,
+                 as_ip=None, as_path=None, elb_ip=None, elb_path=None, cw_ip=None, cw_path=None,
+                 cfn_ip=None, cfn_path=None, sts_ip=None, sts_path=None,
+                 port=8773, download_creds=True, boto_debug=0, debug_method=None, region=None):
         self.config_file = config_file 
         self.APIVersion = APIVersion
         self.eucapath = "/opt/eucalyptus"
@@ -87,7 +91,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
         self.account_id = None
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
-        self.property_manager = None
+        self._property_manager = None
 
 
         if self.config_file is not None:
@@ -125,7 +129,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
                             raise Exception(str(tb) + "\nCould not get credentials from first CLC and no other to try")
                         self.swap_clc()
                         self.sftp = self.clc.ssh.connection.open_sftp()
-                        self.get_credentials(account,user)
+                        self.get_credentials(account, user)
                         
                 self.service_manager = EuserviceManager(self)
                 self.clc = self.service_manager.get_enabled_clc().machine
@@ -139,11 +143,39 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             try:
                 if self.credpath and not ec2_ip:
                     ec2_ip = self.get_ec2_ip()
-                self.setup_ec2_connection(endpoint=ec2_ip, path="/services/Eucalyptus", port=8773, is_secure=False, region=region, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, APIVersion=APIVersion, boto_debug=boto_debug)
+                if self.credpath and not ec2_path:
+                    ec2_path = self.get_ec2_path()
+
+                self.setup_ec2_connection(endpoint=ec2_ip, path=ec2_path, port=port, is_secure=False,
+                                          region=region, aws_access_key_id=aws_access_key_id,
+                                          aws_secret_access_key=aws_secret_access_key, APIVersion=APIVersion,
+                                          boto_debug=boto_debug)
                 self.setup_ec2_resource_trackers()
-                self.setup_iam_connection(endpoint=ec2_ip, path="/services/Euare", port=8773, is_secure=False, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key,  boto_debug=boto_debug)
-                self.setup_sts_connection( endpoint=ec2_ip, path="/services/Eucalyptus", port=8773, is_secure=False, region=region, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
-                self.setup_cw_connection( endpoint=ec2_ip, path="/services/CloudWatch", port=8773, is_secure=False, region=region, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+
+                if self.credpath and not iam_ip:
+                    iam_ip = self.get_iam_ip()
+                if self.credpath and not iam_path:
+                    iam_path = self.get_iam_path()
+                self.setup_iam_connection(endpoint=iam_ip, path=iam_path,
+                                          port=port, is_secure=False, aws_access_key_id=aws_access_key_id,
+                                          aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+
+                if self.credpath and not sts_ip:
+                    sts_ip = self.get_sts_ip()
+                if self.credpath and not sts_path:
+                    sts_path = self.get_sts_path()
+                self.setup_sts_connection(endpoint=sts_ip, path=sts_path, port=port, is_secure=False,
+                                          region=region, aws_access_key_id=aws_access_key_id,
+                                          aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+
+                if self.credpath and not cw_ip:
+                    cw_ip = self.get_cw_ip()
+                if self.credpath and not cw_path:
+                    cw_path = self.get_cw_path()
+                self.setup_cw_connection(endpoint=cw_ip, path=cw_path, port=port, is_secure=False,
+                                         region=region, aws_access_key_id=aws_access_key_id,
+                                         aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+
                 self.setup_cw_resource_trackers()
             except Exception, e:
                 tb = self.get_traceback()
@@ -154,7 +186,9 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
                     s3_ip = self.get_s3_ip()
                 if self.credpath and not s3_path:
                     s3_path = self.get_s3_path()
-                self.setup_s3_connection(endpoint=s3_ip, path=s3_path, port=8773, is_secure=False,aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key,  boto_debug=boto_debug)
+                self.setup_s3_connection(endpoint=s3_ip, path=s3_path, port=port, is_secure=False,
+                                         aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key,
+                                         boto_debug=boto_debug)
                 self.setup_s3_resource_trackers()
             except Exception, e:
                 self.debug("Unable to create S3 connection because of: " + str(e) )
@@ -162,23 +196,52 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             try:
                 if self.credpath and not as_ip:
                     as_ip = self.get_as_ip()
-                self.setup_as_connection(endpoint=as_ip, path="/services/AutoScaling", port=8773, is_secure=False, region=region, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+                if self.credpath and not as_path:
+                    as_path = self.get_as_path()
+                self.setup_as_connection(endpoint=as_ip, path=as_path, port=port, is_secure=False,
+                                         region=region, aws_access_key_id=aws_access_key_id,
+                                         aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
             except Exception, e:
                 self.debug("Unable to create AS connection because of: " + str(e) )
 
             try:
                 if self.credpath and not elb_ip:
                     elb_ip = self.get_elb_ip()
-                self.setup_elb_connection(endpoint=elb_ip, path="/services/LoadBalancing", port=8773, is_secure=False, region=region, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+                if self.credpath and not elb_path:
+                    elb_path = self.get_elb_path()
+                self.setup_elb_connection(endpoint=elb_ip, path=elb_path, port=port, is_secure=False,
+                                          region=region, aws_access_key_id=aws_access_key_id,
+                                          aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
             except Exception, e:
                 self.debug("Unable to create ELB connection because of: " + str(e) )
-        if self.clc and self.account_name == 'eucalyptus':
             try:
-                self.update_property_manager()
-            except:
-                tb = self.get_traceback()
-                self.debug(str(tb) + '\nError creating properties manager')
+                if self.credpath and not cfn_ip:
+                    cfn_ip = self.get_cfn_ip()
+                if self.credpath and not cfn_path:
+                    cfn_path = self.get_cfn_path()
+                self.setup_cfn_connection(endpoint=cfn_ip, path=self.get_cfn_path(), port=port, is_secure=False,
+                                          region=region, aws_access_key_id=aws_access_key_id,
+                                          aws_secret_access_key=aws_secret_access_key, boto_debug=boto_debug)
+            except Exception, e:
+                self.debug("Unable to create CloudFormation connection because of: " + str(e) )
 
+
+
+    @property
+    def property_manager(self):
+        if not self._property_manager:
+            if self.clc and self.account_name == 'eucalyptus':
+                try:
+                    self.update_property_manager()
+                except:
+                    tb = self.get_traceback()
+                    self.debug(str(tb) + '\nError creating properties manager')
+        return self._property_manager
+
+
+    @property_manager.setter
+    def property_manager(self, new_property_mgr):
+        self._property_manager = new_property_mgr
 
     def get_available_vms(self, type=None, zone=None):
         """
@@ -250,7 +313,10 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             raise Exception("Setting property " + property + " failed")
 
 
-    def cleanup_artifacts(self,instances=True, snapshots=True, volumes=True, load_balancers=True, ip_addresses=True, auto_scaling_groups=True, launch_configurations=True, keypairs=True):
+    def cleanup_artifacts(self,instances=True, snapshots=True, volumes=True,
+                          load_balancers=True, ip_addresses=True,
+                          auto_scaling_groups=True, launch_configurations=True,
+                          keypairs=True):
         """
         Description: Attempts to remove artifacts created during and through this eutester's lifespan.
         """
@@ -268,6 +334,8 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             for res in self.test_resources["reservations"]:
                 try:
                     self.terminate_instances(res)
+                    if res in self.test_resources["reservations"]:
+                        self.test_resources["reservations"].remove(res)
                 except Exception, e:
                     tb = self.get_traceback()
                     failcount +=1
@@ -282,8 +350,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
         if volumes:
             try:
                 self.clean_up_test_volumes(timeout_per_vol=60)
-                self.debug("No volumes found")
-
+                self.test_resources['volumes']=[]
             except Exception, e:
                 tb = self.get_traceback()
                 failcount +=1
@@ -321,7 +388,13 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
                     elif isinstance(item,Reservation):
                         continue
                     else:
-                        item.delete()
+                        try:
+                            item.delete()
+                        except EC2ResponseError as ec2re:
+                            if ec2re.status == 400:
+                                self.debug('Resource not found assuming it is'
+                                           ' already deleted, resource:'
+                                           + str(item))
                 except Exception, e:
                     tb = self.get_traceback()
                     failcount += 1
@@ -411,8 +484,6 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             return
         self.debug('clean_up_test_volumes starting\nVolumes to be deleted:' + ",".join(str(x) for x in volumes))
 
-
-
         for vol in volumes:
             try:
                 vol = self.get_volume(volume_id=vol.id)
@@ -420,6 +491,8 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
                 tb = self.get_traceback()
                 self.debug("\n" + line + " Ignoring caught Exception:\n" + str(tb) + "\n"+ str(vol.id) +
                            ', Could not retrieve volume, may no longer exist?' + line)
+                if vol in self.test_resources['volumes']:
+                    self.test_resources['volumes'].remove(vol)
                 vol = None
             if vol:
                 try:
@@ -569,9 +642,9 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
     def update_property_manager(self,machine=None):
         machine = machine or self.clc
         if not machine:
-            self.property_manager = None
+            self._property_manager = None
             return
-        self.property_manager = Euproperty_Manager(self, machine=machine, debugmethod=self.debug)
+        self._property_manager = Euproperty_Manager(self, machine=machine, debugmethod=self.debug)
 
     def swap_clc(self):
         all_clcs = self.get_component_machines("clc")
@@ -699,7 +772,7 @@ class Eucaops(EC2ops,S3ops,IAMops,STSops,CWops, ASops, ELBops):
             machine.sys("mkdir " + admin_cred_dir)
             machine.sftp.put( admin_cred_dir + "/creds.zip" , admin_cred_dir + "/creds.zip")
             machine.sys("unzip -o " + admin_cred_dir + "/creds.zip -d " + admin_cred_dir )
-            machine.sys("sed -i 's/" + self.get_ec2_ip() + "/" + machine.hostname  +"/g' " + admin_cred_dir + "/eucarc")
+            # machine.sys("sed -i 's/" + self.get_ec2_ip() + "/" + machine.hostname  +"/g' " + admin_cred_dir + "/eucarc")
             
         
     def setup_local_creds_dir(self, admin_cred_dir):
